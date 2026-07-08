@@ -28,6 +28,10 @@ body {
   padding: 0 1.25rem;
 }
 
+.container--wide {
+  max-width: 1040px;
+}
+
 header.site-header {
   border-bottom: 1px solid var(--border);
   background: var(--nav-bg);
@@ -172,8 +176,21 @@ article p {
   color: var(--muted);
 }
 
+.hiw-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2.5rem;
+  align-items: start;
+}
+
+@media (min-width: 860px) {
+  .hiw-layout {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 .mockup {
-  margin-top: 2.5rem;
+  margin-top: 0;
 }
 
 .mockup-window {
@@ -211,12 +228,6 @@ article p {
   grid-template-columns: 1fr;
   gap: 1.25rem;
   padding: 1.25rem;
-}
-
-@media (min-width: 640px) {
-  .mockup-body {
-    grid-template-columns: 1fr 1.2fr;
-  }
 }
 
 .mockup-label {
