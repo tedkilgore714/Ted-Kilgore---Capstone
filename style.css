@@ -158,6 +158,13 @@ h1.page-title {
   margin-bottom: 1.5rem;
 }
 
+.page-intro {
+  color: var(--muted);
+  font-size: 1.05rem;
+  max-width: 560px;
+  margin: 0 0 2rem;
+}
+
 article p {
   margin: 0 0 1.25rem;
 }
