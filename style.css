@@ -68,9 +68,20 @@ nav.site-nav {
 }
 
 nav.site-nav a {
+  position: relative;
+  display: inline-block;
   color: var(--muted);
   text-decoration: none;
   font-size: 0.95rem;
+}
+
+nav.site-nav a::after {
+  content: attr(data-label);
+  display: block;
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  font-weight: 700;
 }
 
 nav.site-nav a:hover {
