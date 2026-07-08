@@ -43,10 +43,19 @@ header.site-header .container {
 }
 
 .brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   font-weight: 700;
   font-size: 1.1rem;
   color: var(--text);
   text-decoration: none;
+}
+
+.brand .logo-icon {
+  width: 26px;
+  height: 26px;
+  display: block;
 }
 
 nav.site-nav {
