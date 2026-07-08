@@ -118,6 +118,7 @@ h1 {
 .cta-note {
   color: var(--muted);
   font-size: 0.9rem;
+  font-style: italic;
   max-width: 520px;
   margin: 0.9rem auto 0;
 }
