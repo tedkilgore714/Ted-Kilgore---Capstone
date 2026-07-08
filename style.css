@@ -1,6 +1,7 @@
 :root {
   --bg: #eaf1fb;
   --surface: #ffffff;
+  --nav-bg: #c3d9f5;
   --text: #1a1a2e;
   --muted: #5b6270;
   --accent: #3554d1;
@@ -29,7 +30,7 @@ body {
 
 header.site-header {
   border-bottom: 1px solid var(--border);
-  background: var(--surface);
+  background: var(--nav-bg);
 }
 
 header.site-header .container {
