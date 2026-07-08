@@ -73,9 +73,13 @@ nav.site-nav a {
   font-size: 0.95rem;
 }
 
-nav.site-nav a:hover,
+nav.site-nav a:hover {
+  color: var(--accent);
+}
+
 nav.site-nav a[aria-current="page"] {
   color: var(--accent);
+  font-weight: 700;
 }
 
 main {
