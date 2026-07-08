@@ -53,8 +53,8 @@ header.site-header .container {
 }
 
 .brand .logo-icon {
-  width: 26px;
-  height: 26px;
+  height: 36px;
+  width: auto;
   display: block;
 }
 
