@@ -172,26 +172,6 @@ article p {
   color: var(--muted);
 }
 
-.roadmap {
-  margin-top: 2.5rem;
-  padding: 1.25rem 1.5rem;
-  background: var(--surface);
-  border: 1px dashed var(--border);
-  border-radius: 10px;
-}
-
-.roadmap h3 {
-  margin: 0 0 0.5rem;
-  font-size: 1rem;
-  color: var(--accent);
-}
-
-.roadmap p {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.95rem;
-}
-
 footer.site-footer {
   border-top: 1px solid var(--border);
   padding: 1.5rem 0;
