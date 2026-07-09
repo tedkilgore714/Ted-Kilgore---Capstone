@@ -25,13 +25,36 @@ Ted Kilgore (v1, personal use only). Potential expansion to other job seekers is
 5. Delivers a daily digest of ranked opportunities.
 6. User applies and tracks the pipeline via Kanban.
 
-## v1 scope (Friday-shippable slice)
+## v1 scope (Friday-shippable slice) — SHIPPED
 
 1. **Input**: resume pasted as text (textarea, no file upload/parsing) + preferences captured via a structured form (roles, location ranking, company-fit signals — see Targeting criteria below).
 2. **Recommendation**: Claude generates 30 target companies using the targeting criteria below.
 3. **Curation**: user adds/removes companies from the recommended list.
 
 Explicitly out of v1: career-page monitoring, digest generation, alerting, Kanban tracking, resume file upload/parsing.
+
+v1 is complete and live. Work is now on v2 (see below).
+
+## v2 scope (in progress)
+
+Everything previously deferred as "v2+" is now in scope together, built on top of the
+v1 company shortlist:
+
+1. **Daily career-page monitoring**: for each company in the curated v1 shortlist,
+   check its own career page daily for new postings.
+2. **Ranked digest**: surface new, matching openings ranked by fit, with a direct
+   link, company context, and the reasoning behind the match.
+3. **Configurable alerting**: user-configurable notification channel and schedule
+   (starting with email).
+4. **Kanban pipeline tracking**: track each opening's status (e.g., identified →
+   applied → interviewing → closed) through the application process.
+5. **Resume tailoring + cover letters**: generate a tailored resume and cover
+   letter draft per opening, delivered as an editable .DOCX.
+6. **Resume file upload with parsing**: accept PDF/DOCX upload and parse it,
+   instead of the v1 paste-as-text-only flow.
+
+This is a substantially bigger scope than v1's slice — flagged as a risk to revisit
+if it starts blocking shippable progress.
 
 ## Targeting criteria (drives the 30-company recommendation)
 
@@ -47,17 +70,41 @@ Explicitly out of v1: career-page monitoring, digest generation, alerting, Kanba
 
 Claude generates candidate companies from its own knowledge, then performs a live web search pass per candidate to spot-check headcount growth, company size, and CEO/leadership turnover, citing sources. This is **best-effort verification, not guaranteed-accurate structured data** — the UI/demo should present it as such (e.g., "AI-researched, spot-checked" rather than "verified"). A fully verified pipeline backed by a paid data provider (Crunchbase, Owler, etc.) is a v2+ consideration, not v1.
 
-## Out of scope for v1 (planned for v2+)
+## Data model (Supabase)
 
-- Daily career-page monitoring and digest.
-- Configurable alerting (channels, schedule).
-- Kanban pipeline tracking.
-- Resume tailoring, cover letter generation, editable .DOCX output.
-- Resume file upload (PDF/DOCX) with parsing — v1 uses paste-as-text only.
+**v1 (shipped):**
+
+- `target_companies` — the 30 recommended companies plus curation state
+  (`status`: recommended / kept / removed), match rationale, and research
+  sources from the live web-search spot-check pass.
+- `job_searches` — the resume text and preferences (target roles, location
+  preference) submitted for a recommendation run.
+
+**v2 (in progress):**
+
+- `openings` — individual job postings discovered via career-page monitoring,
+  linked to the `target_companies` row they came from (via `company_id`, not
+  a free-text company name), with `title`, `url`, `location`, `posted_at`,
+  `match_score`, `match_reasons`, `status` (Kanban stage), `notes`, and an
+  `updated_at` timestamp to track pipeline movement over time.
+
+**Known gap to fix before this goes further:** the `anon` Supabase role
+currently has open `insert`/`update` RLS policies (`using (true)` /
+`with check (true)`) with no ownership check. Since the anon key ships in
+client-side JS on the public site, this needs to move behind Supabase Auth
+(`auth.uid() = owner_id`) or a server-side function with the service role
+key before real data lives in these tables.
 
 ## Success metrics
 
-**Open — not yet defined for this scope.** The metrics previously discussed (listing-research time, % validated listings/day, search-to-career-page time) were built for the earlier job-scraping concept and don't map cleanly to a company-recommendation-and-curation v1. Needs a fresh pass: e.g., quality of the 30 recommended companies (how many Ted keeps vs. removes), time to complete curation, or a qualitative "would you actually apply to these" check.
+**Still open for v1** — never defined after the shift away from the earlier
+job-scraping concept. Candidates: quality of the 30 recommended companies (how
+many Ted keeps vs. removes), time to complete curation, or a qualitative "would
+you actually apply to these" check.
+
+**Not yet defined for v2** — candidates once monitoring/digest is live: time-to-alert
+on a new posting, % of alerted openings actually applied to, or how far
+opportunities move through the Kanban pipeline.
 
 ## Stack
 
@@ -65,5 +112,11 @@ HTML/CSS/JS, Supabase, Vercel, GitHub.
 
 ## Open questions
 
-- Success metrics for v1 (see above).
-- Fully verified company data pipeline (paid provider) — deferred to v2+; v1 uses best-effort live search (see Recommendation approach above).
+- Success metrics for v1 and v2 (see above).
+- Fully verified company data pipeline (paid provider) — still deferred beyond
+  v2; both v1 and v2 use best-effort live search (see Recommendation approach
+  above).
+- RLS/auth model for `openings` and future write paths (see Data model above)
+  — needs to be resolved before v2 goes further.
+- v2 bundles six features together (see v2 scope above) — revisit whether to
+  split into shippable slices if progress stalls.
