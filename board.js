@@ -56,7 +56,7 @@ function buildColumns() {
 
 function renderCard(opening) {
   const card = document.createElement('div');
-  card.className = 'kanban-card';
+  card.className = `kanban-card status-${opening.status}`;
   card.draggable = true;
   card.dataset.id = opening.id;
 

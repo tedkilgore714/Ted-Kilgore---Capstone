@@ -649,6 +649,47 @@ article p {
     0 32px 64px rgba(15, 23, 42, 0.3);
 }
 
+.board-status-colors .kanban-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.board-status-colors .kanban-card::before {
+  content: '';
+  position: absolute;
+  top: -46px;
+  right: -46px;
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  filter: blur(28px);
+  opacity: 0.55;
+  z-index: 0;
+  pointer-events: none;
+  transition: background 0.2s ease;
+}
+
+.board-status-colors .kanban-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.board-status-colors .kanban-card.status-identified::before {
+  background: #cbd5e1;
+}
+
+.board-status-colors .kanban-card.status-interviewing::before {
+  background: #86efac;
+}
+
+.board-status-colors .kanban-card.status-applied::before {
+  background: #fde68a;
+}
+
+.board-status-colors .kanban-card.status-closed::before {
+  background: #64748b;
+}
+
 .kanban-card-title {
   font-weight: 600;
   font-size: 0.9rem;
