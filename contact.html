@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Contact &mdash; AI Job Scout</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <a class="brand" href="index.html">
+        <img class="logo-icon" src="AI-Job-Scout-Logo.png" alt="AI Job Scout" />
+      </a>
+      <nav class="site-nav">
+        <a href="index.html" data-label="Home">Home</a>
+        <a href="how-it-works.html" data-label="How It Works">How It Works</a>
+        <a href="coming-soon.html" data-label="Coming Soon">Coming Soon</a>
+        <a href="openings.html" data-label="Openings">Openings</a>
+        <a href="board.html" data-label="Board">Board</a>
+        <a href="about.html" data-label="About">About</a>
+        <a href="contact.html" aria-current="page" data-label="Contact">Contact</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="container">
+      <h1 class="page-title">Contact</h1>
+      <p class="page-intro">
+        Questions, feedback, or just want to say hi? Send a message below.
+      </p>
+
+      <form id="contact-form" class="opening-form">
+        <div class="form-field">
+          <label class="form-label" for="contact-name">Name</label>
+          <input class="form-input" id="contact-name" name="name" type="text" required />
+        </div>
+        <div class="form-field">
+          <label class="form-label" for="contact-email">Email</label>
+          <input class="form-input" id="contact-email" name="email" type="email" required />
+        </div>
+        <div class="form-field form-field-wide">
+          <label class="form-label" for="contact-message">Message</label>
+          <textarea class="form-input" id="contact-message" name="message" rows="5" required></textarea>
+        </div>
+        <button class="btn" type="submit">Send Message</button>
+        <p id="contact-status" class="form-status"></p>
+      </form>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      &copy; 2026 AI Job Scout
+    </div>
+  </footer>
+
+  <script>
+    document.getElementById('contact-form').addEventListener('submit', function (event) {
+      event.preventDefault();
+      const name = document.getElementById('contact-name').value;
+      const email = document.getElementById('contact-email').value;
+      const message = document.getElementById('contact-message').value;
+
+      const subject = encodeURIComponent(`Message from ${name} via AI Job Scout site`);
+      const body = encodeURIComponent(`${message}\n\n---\nFrom: ${name} (${email})`);
+
+      window.location.href = `mailto:tedkilgore714@gmail.com?subject=${subject}&body=${body}`;
+
+      document.getElementById('contact-status').textContent =
+        'Opening your email client to send this message...';
+    });
+  </script>
+</body>
+</html>
