@@ -56,20 +56,31 @@
     </div>
   </footer>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
   <script>
-    document.getElementById('contact-form').addEventListener('submit', function (event) {
+    const contactClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const contactForm = document.getElementById('contact-form');
+    const contactStatus = document.getElementById('contact-status');
+
+    contactForm.addEventListener('submit', async function (event) {
       event.preventDefault();
-      const name = document.getElementById('contact-name').value;
-      const email = document.getElementById('contact-email').value;
-      const message = document.getElementById('contact-message').value;
+      contactStatus.textContent = 'Sending...';
 
-      const subject = encodeURIComponent(`Message from ${name} via AI Job Scout site`);
-      const body = encodeURIComponent(`${message}\n\n---\nFrom: ${name} (${email})`);
+      const { error } = await contactClient.from('leads').insert({
+        name: document.getElementById('contact-name').value,
+        email: document.getElementById('contact-email').value,
+        message: document.getElementById('contact-message').value,
+      });
 
-      window.location.href = `mailto:tedkilgore714@gmail.com?subject=${subject}&body=${body}`;
+      if (error) {
+        contactStatus.textContent = `Error: ${error.message}`;
+        console.error(error);
+        return;
+      }
 
-      document.getElementById('contact-status').textContent =
-        'Opening your email client to send this message...';
+      contactStatus.textContent = "Thanks! Your message has been sent.";
+      contactForm.reset();
     });
   </script>
 </body>
