@@ -217,6 +217,59 @@ h1.page-title {
   font-style: italic;
 }
 
+.admin-table-wrap {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow-x: auto;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.admin-table th {
+  text-align: left;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--muted);
+  padding: 0.85rem 1rem;
+  background: #f6f8fc;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.admin-table td {
+  padding: 0.85rem 1rem;
+  font-size: 0.88rem;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.admin-table tr:last-child td {
+  border-bottom: none;
+}
+
+.admin-table td.admin-message {
+  color: var(--muted);
+  max-width: 320px;
+}
+
+.admin-status-tag {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  background: #e4ecfb;
+  color: var(--accent);
+  text-transform: capitalize;
+}
+
 article p {
   margin: 0 0 1.25rem;
 }

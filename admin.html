@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin &mdash; AI Job Scout</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <a class="brand" href="index.html">
+        <img class="logo-icon" src="AI-Job-Scout-Logo.png" alt="AI Job Scout" />
+      </a>
+      <nav class="site-nav">
+        <a href="index.html" data-label="Home">Home</a>
+        <a href="how-it-works.html" data-label="How It Works">How It Works</a>
+        <a href="coming-soon.html" data-label="Coming Soon">Coming Soon</a>
+        <a href="openings.html" data-label="Openings">Openings</a>
+        <a href="board.html" data-label="Board">Board</a>
+        <a href="about.html" data-label="About">About</a>
+        <a href="contact.html" data-label="Contact">Contact</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="container container--wide">
+      <h1 class="page-title">Admin</h1>
+      <p class="page-intro">Signups from the Contact form, pulled live from Supabase.</p>
+
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Email</th>
+              <th>Message</th>
+              <th>Signup Date</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="admin-tbody"></tbody>
+        </table>
+      </div>
+      <p id="admin-empty" class="simple-list-empty" hidden>No signups yet.</p>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      &copy; 2026 AI Job Scout
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script>
+    const adminClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    function formatDate(value) {
+      if (!value) return '';
+      const d = new Date(value);
+      if (isNaN(d)) return '';
+      return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    async function loadLeads() {
+      const tbody = document.getElementById('admin-tbody');
+      const empty = document.getElementById('admin-empty');
+      const tableWrap = document.querySelector('.admin-table-wrap');
+
+      const { data, error } = await adminClient
+        .from('leads')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        tableWrap.hidden = true;
+        empty.hidden = false;
+        empty.textContent = `Error loading signups: ${error.message}`;
+        console.error(error);
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        tableWrap.hidden = true;
+        empty.hidden = false;
+        empty.textContent = 'No signups yet.';
+        return;
+      }
+
+      tableWrap.hidden = false;
+      empty.hidden = true;
+      tbody.innerHTML = '';
+
+      data.forEach((lead) => {
+        const row = document.createElement('tr');
+
+        const name = document.createElement('td');
+        name.textContent = lead.name || '';
+        row.appendChild(name);
+
+        const email = document.createElement('td');
+        email.textContent = lead.email || '';
+        row.appendChild(email);
+
+        const message = document.createElement('td');
+        message.className = 'admin-message';
+        message.textContent = lead.message || '';
+        row.appendChild(message);
+
+        const date = document.createElement('td');
+        date.textContent = formatDate(lead.created_at);
+        row.appendChild(date);
+
+        const status = document.createElement('td');
+        const tag = document.createElement('span');
+        tag.className = 'admin-status-tag';
+        tag.textContent = lead.status || 'new';
+        status.appendChild(tag);
+        row.appendChild(status);
+
+        tbody.appendChild(row);
+      });
+    }
+
+    loadLeads();
+  </script>
+</body>
+</html>
