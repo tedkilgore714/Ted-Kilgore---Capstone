@@ -72,28 +72,47 @@ Claude generates candidate companies from its own knowledge, then performs a liv
 
 ## Data model (Supabase)
 
-**v1 (shipped):**
+**v1:** table(s) not yet confirmed against the actual Supabase project — an
+earlier draft of this doc assumed `target_companies` and `job_searches` tables,
+but that wasn't verified and shouldn't be treated as fact. Needs a real check
+(e.g. `select table_name from information_schema.tables where table_schema =
+'public';`) before relying on those names anywhere.
 
-- `target_companies` — the 30 recommended companies plus curation state
-  (`status`: recommended / kept / removed), match rationale, and research
-  sources from the live web-search spot-check pass.
-- `job_searches` — the resume text and preferences (target roles, location
-  preference) submitted for a recommendation run.
+**v2 — `openings` table: CREATED.**
 
-**v2 (in progress):**
+```sql
+create table public.openings (
+  id uuid not null default gen_random_uuid (),
+  company text not null,
+  title text not null,
+  url text null,
+  location text null,
+  posted_at date null,
+  salary_range text null,
+  match_score integer null,
+  match_reasons text null,
+  notes text null,
+  status text not null default 'identified'::text,
+  created_at timestamp with time zone null default now(),
+  updated_at timestamp with time zone null default now(),
+  constraint openings_pkey primary key (id),
+  constraint openings_match_score_check check (match_score >= 0 and match_score <= 100),
+  constraint openings_status_check check (status = any (array['identified'::text, 'applied'::text, 'interviewing'::text, 'closed'::text]))
+);
 
-- `openings` — individual job postings discovered via career-page monitoring,
-  linked to the `target_companies` row they came from (via `company_id`, not
-  a free-text company name), with `title`, `url`, `location`, `posted_at`,
-  `match_score`, `match_reasons`, `status` (Kanban stage), `notes`, and an
-  `updated_at` timestamp to track pipeline movement over time.
+create trigger openings_set_updated_at before update on openings
+  for each row execute function set_updated_at ();
+```
 
-**Known gap to fix before this goes further:** the `anon` Supabase role
-currently has open `insert`/`update` RLS policies (`using (true)` /
-`with check (true)`) with no ownership check. Since the anon key ships in
-client-side JS on the public site, this needs to move behind Supabase Auth
-(`auth.uid() = owner_id`) or a server-side function with the service role
-key before real data lives in these tables.
+`company` is free text, not a foreign key — there's no confirmed
+`target_companies` table for it to reference yet.
+
+**Known gap:** the `anon` Supabase role has open `insert`/`update` RLS
+policies (`using (true)` / `with check (true)`) with no ownership check.
+Since the anon key ships in client-side JS on the public site, this needs to
+move behind Supabase Auth or a server-side function with the service role
+key before real personal data lives in this table. Not blocking for now —
+revisit when ready.
 
 ## Success metrics
 
