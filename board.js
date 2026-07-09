@@ -2,8 +2,8 @@ const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const STATUS_COLUMNS = [
   { value: 'identified', label: 'Identified' },
-  { value: 'interviewing', label: 'Interviewing' },
   { value: 'applied', label: 'Applied' },
+  { value: 'interviewing', label: 'Interviewing' },
   { value: 'closed', label: 'Closed' },
 ];
 
