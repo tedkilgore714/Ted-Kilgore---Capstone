@@ -188,6 +188,35 @@ h1.page-title {
   margin: 0 0 2rem;
 }
 
+.simple-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.simple-list-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.9rem 1.1rem;
+}
+
+.simple-list-title {
+  font-weight: 600;
+  font-size: 0.95rem;
+  margin-bottom: 0.25rem;
+}
+
+.simple-list-meta {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.simple-list-empty {
+  color: var(--muted);
+  font-style: italic;
+}
+
 article p {
   margin: 0 0 1.25rem;
 }
