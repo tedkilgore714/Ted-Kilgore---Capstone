@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Openings &mdash; AI Job Scout</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <a class="brand" href="index.html">
+        <img class="logo-icon" src="AI-Job-Scout-Logo.png" alt="AI Job Scout" />
+      </a>
+      <nav class="site-nav">
+        <a href="index.html" data-label="Home">Home</a>
+        <a href="how-it-works.html" data-label="How It Works">How It Works</a>
+        <a href="coming-soon.html" data-label="Coming Soon">Coming Soon</a>
+        <a href="openings.html" aria-current="page" data-label="Openings">Openings</a>
+        <a href="about.html" data-label="About">About</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="container container--wide">
+      <h1 class="page-title">Openings</h1>
+      <p class="page-intro">
+        Live data from Supabase &mdash; track each opening through the pipeline,
+        from identified to closed.
+      </p>
+
+      <form id="opening-form" class="opening-form">
+        <div class="form-field">
+          <label class="form-label" for="opening-company">Company</label>
+          <input class="form-input" id="opening-company" name="company" type="text" required />
+        </div>
+        <div class="form-field">
+          <label class="form-label" for="opening-title">Title</label>
+          <input class="form-input" id="opening-title" name="title" type="text" required />
+        </div>
+        <div class="form-field">
+          <label class="form-label" for="opening-url">URL</label>
+          <input class="form-input" id="opening-url" name="url" type="url" placeholder="https://..." />
+        </div>
+        <div class="form-field">
+          <label class="form-label" for="opening-location">Location</label>
+          <input class="form-input" id="opening-location" name="location" type="text" />
+        </div>
+        <button class="btn" type="submit">Add Opening</button>
+        <p id="opening-form-status" class="form-status"></p>
+      </form>
+
+      <div id="kanban-board" class="kanban-board">
+        <div class="kanban-column" data-status="identified">
+          <h3 class="kanban-column-title">Identified</h3>
+          <div class="kanban-cards"></div>
+        </div>
+        <div class="kanban-column" data-status="applied">
+          <h3 class="kanban-column-title">Applied</h3>
+          <div class="kanban-cards"></div>
+        </div>
+        <div class="kanban-column" data-status="interviewing">
+          <h3 class="kanban-column-title">Interviewing</h3>
+          <div class="kanban-cards"></div>
+        </div>
+        <div class="kanban-column" data-status="closed">
+          <h3 class="kanban-column-title">Closed</h3>
+          <div class="kanban-cards"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      &copy; 2026 AI Job Scout
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="openings.js"></script>
+</body>
+</html>
