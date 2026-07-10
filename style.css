@@ -943,8 +943,52 @@ article p {
 
 footer.site-footer {
   border-top: 1px solid var(--border);
-  padding: 1.5rem 0;
+  padding: 1.75rem 0;
   text-align: center;
   color: var(--muted);
   font-size: 0.85rem;
+}
+
+.footer-nav {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.4rem 1.5rem;
+  margin-bottom: 0.9rem;
+}
+
+.footer-nav a {
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.footer-nav a:hover {
+  color: var(--accent);
+}
+
+.footer-note {
+  margin: 0;
+}
+
+.notfound {
+  text-align: center;
+  padding: 4rem 0 5rem;
+}
+
+.notfound-code {
+  font-size: 5.5rem;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--accent);
+  margin: 0 0 0.5rem;
+}
+
+.notfound h1 {
+  margin: 0 0 0.75rem;
+}
+
+.notfound p {
+  color: var(--muted);
+  max-width: 32rem;
+  margin: 0 auto 1.75rem;
 }

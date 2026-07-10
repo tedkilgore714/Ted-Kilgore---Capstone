@@ -108,7 +108,7 @@ function renderCards() {
     if (items.length === 0) {
       const empty = document.createElement('p');
       empty.className = 'kanban-empty';
-      empty.textContent = 'No openings.';
+      empty.textContent = 'Nothing here yet — add an opening or drag one over.';
       wrap.appendChild(empty);
       return;
     }
