@@ -101,12 +101,12 @@ main {
   padding: 3rem 0 4rem;
 }
 
-main.home {
+main {
   position: relative;
   overflow: hidden;
 }
 
-main.home::before {
+main::before {
   content: "";
   position: absolute;
   top: -180px;
@@ -120,7 +120,7 @@ main.home::before {
   pointer-events: none;
 }
 
-main.home > .container {
+main > .container {
   position: relative;
 }
 
@@ -273,10 +273,27 @@ h1.page-title {
 }
 
 .simple-list-item {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
+  border: 1px solid rgba(229, 231, 235, 0.6);
+  border-radius: 12px;
   padding: 0.9rem 1.1rem;
+  box-shadow:
+    0 1px 3px rgba(15, 23, 42, 0.05),
+    0 8px 20px rgba(15, 23, 42, 0.07);
+}
+
+.prose-card {
+  background: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
+  border: 1px solid rgba(229, 231, 235, 0.6);
+  border-radius: 16px;
+  padding: 2rem 2.25rem;
+  box-shadow:
+    0 2px 4px rgba(15, 23, 42, 0.06),
+    0 12px 32px rgba(15, 23, 42, 0.1);
+}
+
+.prose-card p:last-child {
+  margin-bottom: 0;
 }
 
 .simple-list-title {
@@ -296,10 +313,13 @@ h1.page-title {
 }
 
 .admin-table-wrap {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
+  border: 1px solid rgba(229, 231, 235, 0.6);
+  border-radius: 16px;
   overflow-x: auto;
+  box-shadow:
+    0 2px 4px rgba(15, 23, 42, 0.06),
+    0 12px 32px rgba(15, 23, 42, 0.1);
 }
 
 .admin-table {
@@ -384,11 +404,13 @@ article p {
 }
 
 .mockup-window {
-  border: 1px solid var(--border);
-  border-radius: 12px;
+  border: 1px solid rgba(229, 231, 235, 0.6);
+  border-radius: 16px;
   overflow: hidden;
-  background: var(--surface);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  background: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
+  box-shadow:
+    0 2px 4px rgba(15, 23, 42, 0.06),
+    0 12px 32px rgba(15, 23, 42, 0.1);
 }
 
 .mockup-titlebar {
@@ -529,10 +551,13 @@ article p {
   grid-template-columns: 1fr;
   gap: 1rem;
   margin: 0 0 2.5rem;
-  padding: 1.5rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  padding: 1.75rem;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
+  border: 1px solid rgba(229, 231, 235, 0.6);
+  border-radius: 16px;
+  box-shadow:
+    0 2px 4px rgba(15, 23, 42, 0.06),
+    0 12px 32px rgba(15, 23, 42, 0.1);
 }
 
 .opening-form[hidden] {
