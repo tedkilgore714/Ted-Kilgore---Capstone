@@ -6,7 +6,7 @@ function renderCompany(company) {
 
   const name = document.createElement('div');
   name.className = 'company-card-name';
-  name.textContent = company.name;
+  name.textContent = company.company_name;
   card.appendChild(name);
 
   const metaParts = [];
@@ -47,7 +47,7 @@ async function loadCompanies() {
   const { data, error } = await client
     .from('companies')
     .select('*')
-    .order('name', { ascending: true });
+    .order('company_name', { ascending: true });
 
   list.innerHTML = '';
 
