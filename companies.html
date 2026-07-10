@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Companies &mdash; AI Job Scout</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <a class="brand" href="index.html">
+        <img class="logo-icon" src="AI-Job-Scout-Logo.png" alt="AI Job Scout" />
+      </a>
+      <nav class="site-nav">
+        <a href="index.html" data-label="Home">Home</a>
+        <a href="how-it-works.html" data-label="How It Works">How It Works</a>
+        <a href="companies.html" aria-current="page" data-label="Companies">Companies</a>
+        <a href="openings.html" data-label="Openings">Openings</a>
+        <a href="board.html" data-label="Board">Board</a>
+        <a href="contact.html" data-label="Contact">Contact</a>
+        <a href="about.html" data-label="About">About</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="container container--wide">
+      <p class="page-intro">
+        Your 30 target companies &mdash; the researched shortlist AI Job Scout
+        builds from your resume and preferences, listed alphabetically.
+      </p>
+
+      <div id="companies-list" class="company-grid">
+        <p class="kanban-empty">Loading companies&hellip;</p>
+      </div>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      &copy; 2026 AI Job Scout
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="companies.js"></script>
+</body>
+</html>
