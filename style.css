@@ -101,9 +101,59 @@ main {
   padding: 3rem 0 4rem;
 }
 
+main.home {
+  position: relative;
+  overflow: hidden;
+}
+
+main.home::before {
+  content: "";
+  position: absolute;
+  top: -180px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 900px;
+  height: 520px;
+  background:
+    radial-gradient(closest-side, rgba(53, 84, 209, 0.16), transparent 70%),
+    radial-gradient(closest-side, rgba(134, 190, 250, 0.25), transparent 65%);
+  pointer-events: none;
+}
+
+main.home > .container {
+  position: relative;
+}
+
 .hero {
   text-align: center;
-  padding-bottom: 1rem;
+  padding-bottom: 1.5rem;
+}
+
+.hero-eyebrow {
+  display: inline-block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: rgba(53, 84, 209, 0.08);
+  border: 1px solid rgba(53, 84, 209, 0.22);
+  border-radius: 999px;
+  padding: 0.35rem 0.95rem;
+  margin-bottom: 1.1rem;
+}
+
+.hero h1 {
+  max-width: 720px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.accent-text {
+  background: linear-gradient(100deg, var(--accent) 20%, #6d8dfa 80%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 h1 {
@@ -148,32 +198,54 @@ h1 {
 .benefits {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 1.25rem;
+  gap: 1.5rem;
   margin-top: 0.5rem;
 }
 
-@media (min-width: 640px) {
+@media (min-width: 700px) {
   .benefits {
     grid-template-columns: repeat(2, 1fr);
   }
 }
 
-@media (min-width: 960px) {
-  .benefits {
-    grid-template-columns: repeat(4, 1fr);
-  }
+.benefit {
+  background: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
+  border: 1px solid rgba(229, 231, 235, 0.6);
+  border-radius: 16px;
+  padding: 1.75rem;
+  box-shadow:
+    0 2px 4px rgba(15, 23, 42, 0.06),
+    0 12px 32px rgba(15, 23, 42, 0.1);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
 }
 
-.benefit {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 1.5rem;
+.benefit:hover {
+  transform: translateY(-4px);
+  box-shadow:
+    0 4px 8px rgba(15, 23, 42, 0.08),
+    0 24px 48px rgba(15, 23, 42, 0.16);
+}
+
+.benefit-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: rgba(53, 84, 209, 0.1);
+  color: var(--accent);
+  margin-bottom: 1rem;
+}
+
+.benefit-icon svg {
+  width: 24px;
+  height: 24px;
 }
 
 .benefit h3 {
   margin: 0 0 0.5rem;
-  font-size: 1.05rem;
+  font-size: 1.1rem;
 }
 
 .benefit p {
