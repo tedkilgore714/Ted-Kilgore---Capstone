@@ -600,6 +600,46 @@ article p {
   font-style: italic;
 }
 
+.mockup-textarea.is-typing::after,
+.mockup-input.is-typing::after {
+  content: '';
+  display: inline-block;
+  width: 2px;
+  height: 0.9em;
+  margin-left: 2px;
+  background: var(--accent);
+  vertical-align: -0.1em;
+  animation: mockup-caret-blink 0.8s step-end infinite;
+}
+
+.mockup-button.is-pressed {
+  transform: scale(0.96);
+  background: var(--accent-dark);
+}
+
+#hiw-results.js-animated .mockup-result {
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+
+#hiw-results.js-animated .mockup-result.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+@keyframes mockup-caret-blink {
+  50% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #hiw-results.js-animated .mockup-result {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
+
 .opening-form {
   display: grid;
   grid-template-columns: 1fr;
