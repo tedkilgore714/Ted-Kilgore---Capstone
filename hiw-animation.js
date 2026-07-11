@@ -19,42 +19,50 @@ function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function revealSequentially(items, gap) {
+  for (const item of items) {
+    await wait(gap);
+    item.classList.add('is-visible');
+  }
+}
+
 async function runHiwAnimation() {
-  const resume = document.getElementById('hiw-resume');
+  const dropzone = document.getElementById('hiw-dropzone');
   const roles = document.getElementById('hiw-roles');
-  const location = document.getElementById('hiw-location');
+  const rankList = document.getElementById('hiw-location');
   const button = document.getElementById('hiw-generate');
   const resultsPanel = document.getElementById('hiw-results');
-  if (!resume || !roles || !location || !button || !resultsPanel) return;
+  if (!dropzone || !roles || !rankList || !button || !resultsPanel) return;
 
-  const resumeText = resume.textContent;
   const rolesText = roles.textContent;
-  const locationText = location.textContent;
+  const rankItems = Array.from(rankList.querySelectorAll('.mockup-rank-item'));
   const results = Array.from(resultsPanel.querySelectorAll('.mockup-result'));
 
+  dropzone.classList.add('js-animated');
+  rankList.classList.add('js-animated');
   resultsPanel.classList.add('js-animated');
 
   for (;;) {
-    resume.textContent = '';
+    dropzone.classList.remove('has-file');
     roles.textContent = '';
-    location.textContent = '';
+    rankItems.forEach((item) => item.classList.remove('is-visible'));
     results.forEach((card) => card.classList.remove('is-visible'));
 
-    await typeText(resume, resumeText, 18);
-    await wait(250);
+    await wait(600);
+    dropzone.classList.add('has-file');
+    await wait(500);
+
     await typeText(roles, rolesText, 35);
-    await wait(250);
-    await typeText(location, locationText, 35);
+    await wait(300);
+
+    await revealSequentially(rankItems, 350);
     await wait(400);
 
     button.classList.add('is-pressed');
     await wait(200);
     button.classList.remove('is-pressed');
 
-    for (const card of results) {
-      await wait(450);
-      card.classList.add('is-visible');
-    }
+    await revealSequentially(results, 450);
 
     await wait(3500);
   }

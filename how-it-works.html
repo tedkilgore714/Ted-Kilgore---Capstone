@@ -52,15 +52,31 @@
               <div class="mockup-panel">
                 <div class="mockup-field">
                   <span class="mockup-label">Resume</span>
-                  <div class="mockup-textarea" id="hiw-resume">15 years in professional services leadership, scaling CS/PS teams from 8 to 40&hellip;</div>
+                  <div class="mockup-dropzone has-file" id="hiw-dropzone">
+                    <span class="mockup-dropzone-icon" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+                    </span>
+                    <span class="mockup-dropzone-text">Drag &amp; drop your resume (PDF or DOCX)</span>
+                    <div class="mockup-file" id="hiw-file">
+                      <span class="mockup-file-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+                      </span>
+                      <span class="mockup-file-name">ted-kilgore-resume.pdf</span>
+                      <span class="mockup-file-check" aria-hidden="true">&check;</span>
+                    </div>
+                  </div>
                 </div>
                 <div class="mockup-field">
                   <span class="mockup-label">Target roles</span>
                   <div class="mockup-input" id="hiw-roles">Director of Professional Services</div>
                 </div>
                 <div class="mockup-field">
-                  <span class="mockup-label">Location</span>
-                  <div class="mockup-input" id="hiw-location">Austin, hybrid</div>
+                  <span class="mockup-label">Location &mdash; ranked by preference</span>
+                  <ol class="mockup-rank-list" id="hiw-location">
+                    <li class="mockup-rank-item"><span class="mockup-rank-badge">1</span>Austin, hybrid</li>
+                    <li class="mockup-rank-item"><span class="mockup-rank-badge">2</span>Austin, on-site</li>
+                    <li class="mockup-rank-item"><span class="mockup-rank-badge">3</span>National, remote</li>
+                  </ol>
                 </div>
                 <div class="mockup-button" id="hiw-generate">Generate Shortlist</div>
               </div>
