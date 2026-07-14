@@ -14,10 +14,13 @@ MAX_SEARCHES = 15
 MAX_VERIFICATION_ROUNDS = 2
 
 CLOSED_POSTING_PHRASES = [
-    "no longer open",
-    "no longer accepting applications",
-    "no longer available",
+    "no longer",  # catches "no longer open/active/available/accepting..."
+    "position was filled",
     "position has been filled",
+    "job has been filled",
+    "this job is closed",
+    "posting has expired",
+    "ad has expired",
     "job posting you're looking for might have closed",
     "we couldn't find anything here",
     "page not found",
@@ -28,6 +31,7 @@ URL_PATTERN = re.compile(r"^https?://\S+$")
 JOB_ID_PATTERN = re.compile(
     r"\d{4,}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
 )
+TRAILING_COMMA_PATTERN = re.compile(r",(\s*[\]}])")
 
 SYSTEM_PROMPT = (
     "You are a job hunt strategist. Given a resume, target role, and location, "
@@ -55,13 +59,32 @@ SYSTEM_PROMPT = (
     "company's own domain (e.g. 'site:company.com careers'). Return as JSON "
     f"array of exactly 5 companies, each with a verified hiring_signal. Use "
     f"max {MAX_SEARCHES} searches. For size_estimate and location_match, "
-    "use null only if genuinely uncertain."
+    "use null only if genuinely uncertain. Your final response must ALWAYS "
+    "be the JSON array and nothing else — never prose, never a clarifying "
+    "question. If you run out of search budget before verifying all 5, "
+    "return the JSON array with only the companies you have already "
+    "confirmed (fewer than 5 is fine) rather than asking for more budget "
+    "or guessing at a hiring_signal."
 )
 
 
 def _format_results(results):
     lines = [f"- {r.title} ({r.url}): {(r.highlights or [''])[0]}" for r in results]
     return "\n".join(lines) or "No results found."
+
+
+def _parse_companies_json(text: str) -> list:
+    """Extract and parse the JSON array from Claude's response text.
+
+    Strips trailing commas before parsing — a comma immediately before a
+    closing } or ] is never valid JSON, so this is a safe repair for the
+    occasional LLM formatting slip rather than a real ambiguity.
+    """
+    match = re.search(r"\[.*\]", text, re.DOTALL)
+    if not match:
+        raise ValueError(f"No JSON array found in Claude's response:\n{text}")
+    cleaned = TRAILING_COMMA_PATTERN.sub(r"\1", match.group(0))
+    return json.loads(cleaned)
 
 
 def _is_posting_live(url) -> bool:
@@ -128,6 +151,12 @@ def match_companies(resume: str, role: str, location: str) -> list:
         }
     ]
 
+    # Tracks the best verified set found so far. If a later round breaks
+    # format (e.g. Claude runs out of search budget and responds with a
+    # clarifying question instead of JSON), fall back to this instead of
+    # crashing the whole request.
+    verified_companies = []
+
     for attempt in range(MAX_VERIFICATION_ROUNDS + 1):
         runner = claude.beta.messages.tool_runner(
             model=MODEL,
@@ -143,18 +172,20 @@ def match_companies(resume: str, role: str, location: str) -> list:
         messages.append({"role": "assistant", "content": final_message.content})
 
         text = "".join(b.text for b in final_message.content if b.type == "text")
-        match = re.search(r"\[.*\]", text, re.DOTALL)
-        if not match:
-            raise ValueError(f"No JSON array found in Claude's response:\n{text}")
-        companies = json.loads(match.group(0))
+        try:
+            companies = _parse_companies_json(text)
+        except ValueError:
+            return verified_companies
+
         live = {id(c): _is_posting_live(c.get("hiring_signal")) for c in companies}
+        verified_companies = [c for c in companies if live[id(c)]]
         broken = [c for c in companies if not live[id(c)]]
 
         if not broken or attempt == MAX_VERIFICATION_ROUNDS:
             # Never return a company whose hiring_signal couldn't be
             # confirmed live, even after retries — an unverifiable listing
             # is worse than one fewer result.
-            return [c for c in companies if live[id(c)]]
+            return verified_companies
 
         broken_names = ", ".join(c["company_name"] for c in broken)
         messages.append(
