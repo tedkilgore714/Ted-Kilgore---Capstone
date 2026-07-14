@@ -78,12 +78,40 @@ DEMO_HTML = """<!doctype html>
     border: 1px solid #ccc;
     border-radius: 8px;
     padding: 1rem;
+    min-width: 0;
+    overflow-wrap: break-word;
   }
-  .card h3 { margin: 0 0 0.5rem; }
+  .card h3 { margin: 0 0 0.5rem; overflow-wrap: break-word; }
   .card dl { margin: 0; }
   .card dt { font-weight: 600; font-size: 0.85rem; margin-top: 0.5rem; }
-  .card dd { margin: 0; }
+  .card dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  .card dd a { overflow-wrap: anywhere; word-break: break-word; }
   .missing { color: #888; font-style: italic; }
+  #json-details {
+    margin-top: 1.5rem;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+  }
+  #json-details summary {
+    cursor: pointer;
+    font-weight: 600;
+  }
+  #json-output {
+    margin: 0.75rem 0 0;
+    padding: 0.75rem;
+    background: rgba(127, 127, 127, 0.1);
+    border-radius: 6px;
+    font-size: 0.85rem;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    max-height: 400px;
+    overflow-y: auto;
+  }
 </style>
 </head>
 <body>
@@ -101,6 +129,11 @@ DEMO_HTML = """<!doctype html>
   <button id="submit-btn">Find matching companies →</button>
   <div id="status"></div>
   <div id="results"></div>
+
+  <details id="json-details" style="display: none;">
+    <summary>Show JSON</summary>
+    <pre id="json-output"></pre>
+  </details>
 
 <script>
 const NOT_ENOUGH_EVIDENCE = "— not enough evidence to say —";
@@ -143,8 +176,12 @@ document.getElementById("submit-btn").addEventListener("click", async () => {
   const statusEl = document.getElementById("status");
   const resultsEl = document.getElementById("results");
   const btn = document.getElementById("submit-btn");
+  const jsonDetailsEl = document.getElementById("json-details");
+  const jsonOutputEl = document.getElementById("json-output");
 
   resultsEl.innerHTML = "";
+  jsonDetailsEl.style.display = "none";
+  jsonDetailsEl.open = false;
   statusEl.textContent = "Searching...";
   btn.disabled = true;
 
@@ -163,6 +200,9 @@ document.getElementById("submit-btn").addEventListener("click", async () => {
     const companies = await response.json();
     statusEl.textContent = "";
     companies.forEach((company) => resultsEl.appendChild(renderCard(company)));
+
+    jsonOutputEl.textContent = JSON.stringify(companies, null, 2);
+    jsonDetailsEl.style.display = "block";
   } catch (err) {
     statusEl.textContent = `Error: ${err.message}`;
   } finally {
