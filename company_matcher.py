@@ -9,21 +9,30 @@ from exa_py import Exa
 load_dotenv(os.path.join(os.path.dirname(__file__), "aijobscout.env"))
 
 MODEL = "claude-sonnet-5"
-MAX_SEARCHES = 6
+MAX_SEARCHES = 15
 
 SYSTEM_PROMPT = (
     "You are a job hunt strategist. Given a resume, target role, and location, "
-    "use web_search to find EXACTLY 5 companies that fit. For each: company_name, "
-    "job_title (the specific open role title from the posting), size_estimate, "
-    "location_match, hiring_signal (must be a real job posting URL hosted "
-    "directly on the company's own careers/jobs site — NEVER a third-party "
-    "job board or aggregator such as LinkedIn, Indeed, Glassdoor, "
-    "ZipRecruiter, BuiltIn, or similar, and NEVER 'probably hiring'; if you "
-    "cannot find a posting on the company's own site, use null for "
-    "hiring_signal instead of linking a third-party source), fit_rationale "
-    "(2 sentences). When searching, prefer queries that target the "
+    "use web_search to find EXACTLY 5 companies that fit AND that you can "
+    "verify have an open position posted directly on their own careers/jobs "
+    "site. For each: company_name, job_title (the specific open role title "
+    "from the posting), size_estimate, location_match, hiring_signal (a real "
+    "job posting URL for that company only — either on the company's own "
+    "domain, e.g. careers.company.com, or a single-tenant ATS-hosted board "
+    "exclusively for that company, e.g. job-boards.greenhouse.io/company, "
+    "jobs.lever.co/company, company.wd1.myworkdayjobs.com, or similar. NEVER "
+    "a multi-employer job board or aggregator that lists postings from many "
+    "different companies, such as LinkedIn, Indeed, Glassdoor, ZipRecruiter, "
+    "or BuiltIn), fit_rationale "
+    "(2 sentences). hiring_signal is a hard requirement: if you cannot "
+    "verify a posting on a candidate company's own site, drop that company "
+    "and search for a different one instead — every company in your final "
+    "answer must have a confirmed hiring_signal; never use null for "
+    "hiring_signal. When searching, prefer queries that target the "
     "company's own domain (e.g. 'site:company.com careers'). Return as JSON "
-    "array. Use max 6 searches. If uncertain, use null."
+    f"array of exactly 5 companies, each with a verified hiring_signal. Use "
+    f"max {MAX_SEARCHES} searches. For size_estimate and location_match, "
+    "use null only if genuinely uncertain."
 )
 
 
@@ -50,7 +59,7 @@ def match_companies(resume: str, role: str, location: str) -> list:
         """
         nonlocal searches_used
         if searches_used >= MAX_SEARCHES:
-            return "Search limit reached (6). Answer with what you already have."
+            return f"Search limit reached ({MAX_SEARCHES}). Answer with what you already have."
         searches_used += 1
         result = exa.search(query, num_results=5, contents={"highlights": True})
         return _format_results(result.results)
@@ -61,7 +70,7 @@ def match_companies(resume: str, role: str, location: str) -> list:
 
     runner = claude.beta.messages.tool_runner(
         model=MODEL,
-        max_tokens=8000,
+        max_tokens=16000,
         system=SYSTEM_PROMPT,
         tools=[web_search],
         messages=[{"role": "user", "content": user_message}],
