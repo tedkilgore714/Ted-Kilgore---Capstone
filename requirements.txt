@@ -1,0 +1,7 @@
+anthropic==0.116.0
+composio==0.17.1
+composio-client==1.41.0
+exa-py==2.16.0
+fastapi
+python-dotenv==1.2.2
+uvicorn

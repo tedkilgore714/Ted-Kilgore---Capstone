@@ -1,0 +1,180 @@
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
+from pydantic import BaseModel
+
+from company_matcher import match_companies
+
+app = FastAPI(title="AI Job Scout — Company Matcher")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+class MatchRequest(BaseModel):
+    resume: str
+    role: str
+    location: str
+
+
+@app.post("/matcher")
+def matcher(request: MatchRequest):
+    try:
+        return match_companies(request.resume, request.role, request.location)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+DEMO_HTML = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>AI Job Scout — Company Matcher</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    max-width: 900px;
+    margin: 2rem auto;
+    padding: 0 1.5rem;
+    line-height: 1.5;
+  }
+  h1 { font-size: 1.5rem; }
+  label { display: block; font-weight: 600; margin-top: 1rem; margin-bottom: 0.25rem; }
+  textarea, input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.5rem;
+    font-family: inherit;
+    font-size: 1rem;
+    border: 1px solid #999;
+    border-radius: 6px;
+  }
+  textarea { min-height: 140px; resize: vertical; }
+  button {
+    margin-top: 1.25rem;
+    padding: 0.65rem 1.25rem;
+    font-size: 1rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 6px;
+    background: #2563eb;
+    color: white;
+    cursor: pointer;
+  }
+  button:disabled { opacity: 0.6; cursor: not-allowed; }
+  #status { margin-top: 1rem; font-style: italic; }
+  #results {
+    margin-top: 2rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 1rem;
+  }
+  .card {
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    padding: 1rem;
+  }
+  .card h3 { margin: 0 0 0.5rem; }
+  .card dl { margin: 0; }
+  .card dt { font-weight: 600; font-size: 0.85rem; margin-top: 0.5rem; }
+  .card dd { margin: 0; }
+  .missing { color: #888; font-style: italic; }
+</style>
+</head>
+<body>
+  <h1>AI Job Scout — Company Matcher</h1>
+
+  <label for="resume">Resume</label>
+  <textarea id="resume" placeholder="Paste your resume here..."></textarea>
+
+  <label for="role">Target role</label>
+  <input id="role" type="text" placeholder="e.g. Director of Professional Services">
+
+  <label for="location">Location</label>
+  <input id="location" type="text" placeholder="e.g. Austin, TX (hybrid preferred)">
+
+  <button id="submit-btn">Find matching companies →</button>
+  <div id="status"></div>
+  <div id="results"></div>
+
+<script>
+const NOT_ENOUGH_EVIDENCE = "— not enough evidence to say —";
+
+function field(value) {
+  return (value === null || value === undefined || value === "")
+    ? NOT_ENOUGH_EVIDENCE
+    : value;
+}
+
+function renderCard(company) {
+  const card = document.createElement("div");
+  card.className = "card";
+
+  const hiringSignal = company.hiring_signal
+    ? `<a href="${company.hiring_signal}" target="_blank" rel="noopener noreferrer">${company.hiring_signal}</a>`
+    : `<span class="missing">${NOT_ENOUGH_EVIDENCE}</span>`;
+
+  card.innerHTML = `
+    <h3>${field(company.company_name)}</h3>
+    <dl>
+      <dt>Size Estimate</dt>
+      <dd>${field(company.size_estimate)}</dd>
+      <dt>Location Match</dt>
+      <dd>${field(company.location_match)}</dd>
+      <dt>Hiring Signal</dt>
+      <dd>${hiringSignal}</dd>
+      <dt>Fit Rationale</dt>
+      <dd>${field(company.fit_rationale)}</dd>
+    </dl>
+  `;
+  return card;
+}
+
+document.getElementById("submit-btn").addEventListener("click", async () => {
+  const resume = document.getElementById("resume").value;
+  const role = document.getElementById("role").value;
+  const location = document.getElementById("location").value;
+
+  const statusEl = document.getElementById("status");
+  const resultsEl = document.getElementById("results");
+  const btn = document.getElementById("submit-btn");
+
+  resultsEl.innerHTML = "";
+  statusEl.textContent = "Searching...";
+  btn.disabled = true;
+
+  try {
+    const response = await fetch("/matcher", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ resume, role, location }),
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.detail || `Request failed (${response.status})`);
+    }
+
+    const companies = await response.json();
+    statusEl.textContent = "";
+    companies.forEach((company) => resultsEl.appendChild(renderCard(company)));
+  } catch (err) {
+    statusEl.textContent = `Error: ${err.message}`;
+  } finally {
+    btn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>
+"""
+
+
+@app.get("/demo", response_class=HTMLResponse)
+def demo():
+    return DEMO_HTML
