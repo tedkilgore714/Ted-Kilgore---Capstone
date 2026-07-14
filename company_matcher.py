@@ -1,6 +1,7 @@
 import json
 import os
 import re
+from urllib.parse import urlsplit
 
 import requests
 from anthropic import Anthropic, beta_tool
@@ -10,8 +11,8 @@ from exa_py import Exa
 load_dotenv(os.path.join(os.path.dirname(__file__), "aijobscout.env"))
 
 MODEL = "claude-sonnet-5"
-MAX_SEARCHES = 15
-MAX_VERIFICATION_ROUNDS = 2
+MAX_SEARCHES = 30
+MAX_VERIFICATION_ROUNDS = 3
 
 CLOSED_POSTING_PHRASES = [
     "no longer",  # catches "no longer open/active/available/accepting..."
@@ -32,6 +33,12 @@ JOB_ID_PATTERN = re.compile(
     r"\d{4,}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
 )
 TRAILING_COMMA_PATTERN = re.compile(r",(\s*[\]}])")
+
+WORKDAY_HOST_PATTERN = re.compile(
+    r"^https?://([\w-]+)\.(wd\d+)\.myworkdayjobs\.com", re.IGNORECASE
+)
+WORKDAY_REQ_ID_PATTERN = re.compile(r"R\d{5,}", re.IGNORECASE)
+WORKDAY_LOCALE_PATTERN = re.compile(r"^[a-z]{2}-[A-Z]{2}$")
 
 SYSTEM_PROMPT = (
     "You are a job hunt strategist. Given a resume, target role, and location, "
@@ -87,22 +94,111 @@ def _parse_companies_json(text: str) -> list:
     return json.loads(cleaned)
 
 
-def _is_posting_live(url) -> bool:
-    """Fetch a hiring_signal URL and check it actually returns an open posting.
+def _check_workday_posting(url: str):
+    """Query Workday's internal CXS search API to verify a posting and
+    recover its canonical URL, keyed on the job's requisition ID — the one
+    stable element across the URL-format variants Workday tenants use (and
+    that Claude has been known to guess wrong).
 
-    Catches the common ATS "this job is closed" patterns (Greenhouse redirects
-    to ?error=true, Lever 404s, etc.) rather than trusting Exa's search index,
-    which can be stale. Not bulletproof against heavily JS-rendered pages that
-    don't include the closed-posting text in the raw HTML.
+    Workday career pages render entirely client-side, so a plain HTML fetch
+    can't see whether a job actually exists. This hits the same JSON
+    endpoint the page's own JavaScript calls. It's an undocumented,
+    unofficial API and could change without notice, so any failure here
+    means "inconclusive" — callers should fall back to a search-based
+    check, not treat it as a definitive "closed."
+
+    Returns (is_live, canonical_url). is_live is True/False when the API
+    gives a clear answer, or None if the call was inconclusive.
+    """
+    host_match = WORKDAY_HOST_PATTERN.match(url)
+    req_id_match = WORKDAY_REQ_ID_PATTERN.search(url)
+    if not host_match or not req_id_match:
+        return None, None
+    tenant, wd_shard = host_match.groups()
+    req_id = req_id_match.group(0).upper()
+
+    path_parts = [p for p in urlsplit(url).path.split("/") if p]
+    site_candidates = [p for p in path_parts if not WORKDAY_LOCALE_PATTERN.match(p)]
+    site = site_candidates[0] if site_candidates else tenant
+
+    search_url = f"https://{tenant}.{wd_shard}.myworkdayjobs.com/wday/cxs/{tenant}/{site}/jobs"
+    try:
+        response = requests.post(
+            search_url,
+            json={"appliedFacets": {}, "limit": 20, "offset": 0, "searchText": req_id},
+            timeout=10,
+            headers={"Accept": "application/json"},
+        )
+    except requests.RequestException:
+        return None, None
+    if response.status_code != 200:
+        return None, None
+    try:
+        data = response.json()
+    except ValueError:
+        return None, None
+
+    for posting in data.get("jobPostings", []):
+        if req_id in (posting.get("bulletFields") or []):
+            external_path = posting.get("externalPath")
+            canonical_url = (
+                f"https://{tenant}.{wd_shard}.myworkdayjobs.com/{site}{external_path}"
+                if external_path
+                else None
+            )
+            return True, canonical_url
+
+    return False, None
+
+
+def _search_confirms_posting(exa, company_name: str, job_title: str, hiring_signal: str) -> bool:
+    """Best-effort fallback for when a posting can't be verified directly
+    (e.g. the Workday API call above was inconclusive). Runs a targeted
+    search and checks whether the same specific posting — matched by its
+    job/req ID — still shows up in fresh results.
+    """
+    id_match = JOB_ID_PATTERN.search(hiring_signal)
+    if not id_match:
+        return False
+    posting_id = id_match.group(0)
+    try:
+        result = exa.search(f"{company_name} {job_title}", num_results=5)
+    except Exception:
+        return False
+    return any(posting_id in r.url for r in result.results)
+
+
+def _is_posting_live(exa, company: dict) -> bool:
+    """Verify a company's hiring_signal points to a real, currently open posting.
 
     Also rejects URLs with no job/req ID in the path (e.g. a generic company
     careers homepage) — those aren't links to a specific posting, even if
     the page itself loads fine.
     """
+    url = company.get("hiring_signal")
     if not url or not URL_PATTERN.match(url):
         return False
     if not JOB_ID_PATTERN.search(url):
         return False
+
+    if WORKDAY_HOST_PATTERN.match(url):
+        is_live, canonical_url = _check_workday_posting(url)
+        if is_live is True:
+            if canonical_url:
+                company["hiring_signal"] = canonical_url
+            return True
+        if is_live is False:
+            return False
+        # API was inconclusive — fall back to a targeted search instead of
+        # trusting a JS-rendered page we can't actually read.
+        return _search_confirms_posting(
+            exa, company.get("company_name", ""), company.get("job_title", ""), url
+        )
+
+    # Non-Workday ATS/company pages render their "closed" messaging
+    # server-side, so a plain fetch reliably catches it (Greenhouse
+    # redirects to ?error=true, Lever 404s, etc.) rather than trusting
+    # Exa's search index, which can be stale.
     try:
         response = requests.get(
             url, timeout=10, headers={"User-Agent": "Mozilla/5.0"}
@@ -177,7 +273,7 @@ def match_companies(resume: str, role: str, location: str) -> list:
         except ValueError:
             return verified_companies
 
-        live = {id(c): _is_posting_live(c.get("hiring_signal")) for c in companies}
+        live = {id(c): _is_posting_live(exa, c) for c in companies}
         verified_companies = [c for c in companies if live[id(c)]]
         broken = [c for c in companies if not live[id(c)]]
 
