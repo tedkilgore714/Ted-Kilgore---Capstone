@@ -71,8 +71,11 @@ DEMO_HTML = """<!doctype html>
   #results {
     margin-top: 2rem;
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    grid-template-columns: repeat(2, 1fr);
     gap: 1rem;
+  }
+  @media (max-width: 600px) {
+    #results { grid-template-columns: 1fr; }
   }
   .card {
     border: 1px solid #ccc;
@@ -149,7 +152,7 @@ function renderCard(company) {
   card.className = "card";
 
   const hiringSignal = company.hiring_signal
-    ? `<a href="${company.hiring_signal}" target="_blank" rel="noopener noreferrer">${company.hiring_signal}</a>`
+    ? `<a href="${company.hiring_signal}" target="_blank" rel="noopener noreferrer">${company.job_title || "View posting"}</a>`
     : `<span class="missing">${NOT_ENOUGH_EVIDENCE}</span>`;
 
   card.innerHTML = `

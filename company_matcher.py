@@ -14,8 +14,9 @@ MAX_SEARCHES = 6
 SYSTEM_PROMPT = (
     "You are a job hunt strategist. Given a resume, target role, and location, "
     "use web_search to find EXACTLY 5 companies that fit. For each: company_name, "
-    "size_estimate, location_match, hiring_signal (must be a real job posting URL — "
-    "NEVER 'probably hiring'), fit_rationale (2 sentences). Return as JSON array. "
+    "job_title (the specific open role title from the posting), size_estimate, "
+    "location_match, hiring_signal (must be a real job posting URL — NEVER "
+    "'probably hiring'), fit_rationale (2 sentences). Return as JSON array. "
     "Use max 6 searches. If uncertain, use null."
 )
 
