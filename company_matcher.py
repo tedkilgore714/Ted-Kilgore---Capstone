@@ -1,18 +1,30 @@
 import json
 import os
 import re
+from datetime import date
 from urllib.parse import urlsplit
 
 import requests
 from anthropic import Anthropic, beta_tool
+from composio import Composio
 from dotenv import load_dotenv
 from exa_py import Exa
 
 load_dotenv(os.path.join(os.path.dirname(__file__), "aijobscout.env"))
 
 MODEL = "claude-sonnet-5"
-MAX_SEARCHES = 30
-MAX_VERIFICATION_ROUNDS = 3
+
+# TEST CONFIG (2026-07-15): bumped from the normal 5/30/3 to stress-test a
+# larger batch per Ted's request. Revert to TARGET_COMPANY_COUNT=5,
+# MAX_SEARCHES=30, MAX_VERIFICATION_ROUNDS=3 when told to.
+TARGET_COMPANY_COUNT = 15
+MAX_SEARCHES = 60
+MAX_VERIFICATION_ROUNDS = 15
+MAX_TOKENS = 32000
+
+GMAIL_USER_ID = "pg-test-ee614ebd-aec6-462f-ba1c-0399d74feadd"
+GMAIL_DRAFT_TOOL_VERSION = "20260702_01"
+RECIPIENT_EMAIL = "aijobscout@gmail.com"
 
 CLOSED_POSTING_PHRASES = [
     "no longer",  # catches "no longer open/active/available/accepting..."
@@ -42,7 +54,7 @@ WORKDAY_LOCALE_PATTERN = re.compile(r"^[a-z]{2}-[A-Z]{2}$")
 
 SYSTEM_PROMPT = (
     "You are a job hunt strategist. Given a resume, target role, and location, "
-    "use web_search to find EXACTLY 5 companies that fit AND that you can "
+    f"use web_search to find EXACTLY {TARGET_COMPANY_COUNT} companies that fit AND that you can "
     "verify have an open position posted directly on their own careers/jobs "
     "site. For each: company_name, job_title (the specific open role title "
     "from the posting), size_estimate, location_match, hiring_signal (a real "
@@ -64,14 +76,15 @@ SYSTEM_PROMPT = (
     "answer must have a confirmed hiring_signal; never use null for "
     "hiring_signal. When searching, prefer queries that target the "
     "company's own domain (e.g. 'site:company.com careers'). Return as JSON "
-    f"array of exactly 5 companies, each with a verified hiring_signal. Use "
-    f"max {MAX_SEARCHES} searches. For size_estimate and location_match, "
-    "use null only if genuinely uncertain. Your final response must ALWAYS "
-    "be the JSON array and nothing else — never prose, never a clarifying "
-    "question. If you run out of search budget before verifying all 5, "
-    "return the JSON array with only the companies you have already "
-    "confirmed (fewer than 5 is fine) rather than asking for more budget "
-    "or guessing at a hiring_signal."
+    f"array of exactly {TARGET_COMPANY_COUNT} companies, each with a verified "
+    f"hiring_signal. Use max {MAX_SEARCHES} searches. For size_estimate and "
+    "location_match, use null only if genuinely uncertain. Your final "
+    "response must ALWAYS be the JSON array and nothing else — never prose, "
+    f"never a clarifying question. If you run out of search budget before "
+    f"verifying all {TARGET_COMPANY_COUNT}, return the JSON array with only "
+    f"the companies you have already confirmed (fewer than "
+    f"{TARGET_COMPANY_COUNT} is fine) rather than asking for more budget or "
+    "guessing at a hiring_signal."
 )
 
 
@@ -218,11 +231,12 @@ def _is_posting_live(exa, company: dict) -> bool:
 
 
 def match_companies(resume: str, role: str, location: str) -> list:
-    """Ask Claude to find 5 companies matching the resume/role/location, using Exa search.
+    """Ask Claude to find TARGET_COMPANY_COUNT companies matching the
+    resume/role/location, using Exa search.
 
     Returns the parsed JSON array (list of dicts) from Claude's response.
     """
-    claude = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+    claude = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"], timeout=600.0)
     exa = Exa(api_key=os.environ["EXA_API_KEY"])
     searches_used = 0
 
@@ -256,7 +270,7 @@ def match_companies(resume: str, role: str, location: str) -> list:
     for attempt in range(MAX_VERIFICATION_ROUNDS + 1):
         runner = claude.beta.messages.tool_runner(
             model=MODEL,
-            max_tokens=16000,
+            max_tokens=MAX_TOKENS,
             system=SYSTEM_PROMPT,
             tools=[web_search],
             messages=messages,
@@ -293,10 +307,38 @@ def match_companies(resume: str, role: str, location: str) -> list:
                     f"with different ones that have a verified, currently "
                     f"open posting on their own careers site or a "
                     f"single-tenant ATS board. Return the full updated JSON "
-                    f"array of 5 companies."
+                    f"array of {TARGET_COMPANY_COUNT} companies."
                 ),
             }
         )
+
+
+def _build_email_body(companies: list) -> str:
+    lines = [f"AI Job Scout — {len(companies)} verified companies", ""]
+    for i, c in enumerate(companies, 1):
+        lines.append(f"{i}. {c.get('company_name')} — {c.get('job_title')}")
+        lines.append(f"   Size: {c.get('size_estimate')}")
+        lines.append(f"   Location: {c.get('location_match')}")
+        lines.append(f"   Posting: {c.get('hiring_signal')}")
+        lines.append(f"   Why: {c.get('fit_rationale')}")
+        lines.append("")
+    return "\n".join(lines)
+
+
+def draft_email(companies: list) -> None:
+    """Draft a Gmail email with the results, using the same Composio setup
+    as daily_digest.py."""
+    composio = Composio(api_key=os.environ["COMPOSIO_API_KEY"])
+    composio.tools.execute(
+        slug="GMAIL_CREATE_EMAIL_DRAFT",
+        user_id=GMAIL_USER_ID,
+        version=GMAIL_DRAFT_TOOL_VERSION,
+        arguments={
+            "recipient_email": RECIPIENT_EMAIL,
+            "subject": f"AI Job Scout — {len(companies)} companies ({date.today().isoformat()})",
+            "body": _build_email_body(companies),
+        },
+    )
 
 
 if __name__ == "__main__":
@@ -311,3 +353,5 @@ if __name__ == "__main__":
 
     companies = match_companies(sample_resume, sample_role, sample_location)
     print(json.dumps(companies, indent=2))
+    draft_email(companies)
+    print(f"\nDrafted email to {RECIPIENT_EMAIL} with {len(companies)} companies.")
