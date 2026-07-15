@@ -11,6 +11,7 @@ load_dotenv(os.path.join(os.path.dirname(__file__), "aijobscout.env"))
 MODEL = "claude-sonnet-5"
 MAX_SEARCHES = 40
 TARGET_COMPANY_COUNT = 30
+MAX_TOKENS = 32000
 
 COMPANY_SIZE_OPTIONS = [
     "Small (1-200 employees)",
@@ -43,9 +44,16 @@ SYSTEM_PROMPT = (
     "inclusion is ON, include companies with a local office AND any company "
     "(regardless of where its office is) that offers remote work for this "
     "type of role.\n"
-    "- Company size: a soft preference for the given size range — not a "
-    "hard filter. Companies outside the range can still be included if "
-    "otherwise a strong fit, but prioritize matches.\n"
+    "- Company size: a preference for the given size range, not a strict "
+    "hard filter — but do not stretch it loosely either. Only include a "
+    "company outside the range if its size is within roughly 50% of the "
+    "range's nearest boundary (e.g. if the range tops out at 1,000 "
+    "employees, a company with up to ~1,500 is acceptable; a company with "
+    "3,000+ should NOT be included just because it's otherwise a strong "
+    f"fit). Only go further outside that 50% band if you genuinely cannot "
+    f"find {TARGET_COMPANY_COUNT} companies within or near the preferred "
+    "range — and if you do, say so implicitly by making sure most of the "
+    "list stays within the tightened band.\n"
     "- Growth: prefer companies whose headcount appears to be increasing "
     "year-over-year for the past few years, based on best-effort public "
     "signals (LinkedIn headcount trends, news, funding announcements, etc).\n"
@@ -90,6 +98,8 @@ def recommend_companies(
     location: str,
     company_size: str,
     include_remote: bool,
+    angle: str = None,
+    already_seen: list = None,
 ) -> list:
     """Ask Claude to recommend TARGET_COMPANY_COUNT companies that fit the
     resume/role/location/preferences, using best-effort company-level
@@ -100,9 +110,17 @@ def recommend_companies(
     of office location) are included alongside local ones (within
     LOCAL_RADIUS_MILES of location).
 
+    angle is an optional steering hint for this call (e.g. "healthcare
+    companies" or "sub-100-employee startups") — useful for callers that
+    invoke this repeatedly and want a genuinely different set of results.
+
+    already_seen is an optional list of company names to avoid
+    re-recommending (e.g. companies a caller has already collected from a
+    prior call).
+
     Returns the parsed JSON array (list of dicts) from Claude's response.
     """
-    claude = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+    claude = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"], timeout=600.0)
     exa = Exa(api_key=os.environ["EXA_API_KEY"])
     searches_used = 0
 
@@ -127,10 +145,17 @@ def recommend_companies(
         f"Preferred company size: {company_size}\n"
         f"Include remote-friendly companies: {'Yes' if include_remote else 'No'}"
     )
+    if angle:
+        user_message += f"\n\nSearch angle for this round: {angle}"
+    if already_seen:
+        user_message += (
+            "\n\nDo NOT recommend any of these companies — already found in "
+            f"a prior search: {', '.join(already_seen)}"
+        )
 
     runner = claude.beta.messages.tool_runner(
         model=MODEL,
-        max_tokens=16000,
+        max_tokens=MAX_TOKENS,
         system=SYSTEM_PROMPT,
         tools=[web_search],
         messages=[{"role": "user", "content": user_message}],
@@ -141,6 +166,12 @@ def recommend_companies(
         final_message = message
 
     text = "".join(b.text for b in final_message.content if b.type == "text")
+    if not text:
+        raise ValueError(
+            f"Claude's final message had no text content (stop_reason: "
+            f"{final_message.stop_reason}). This usually means max_tokens "
+            f"was hit mid-thought before any output was written."
+        )
     return _parse_companies_json(text)
 
 

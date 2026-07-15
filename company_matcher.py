@@ -14,12 +14,9 @@ load_dotenv(os.path.join(os.path.dirname(__file__), "aijobscout.env"))
 
 MODEL = "claude-sonnet-5"
 
-# TEST CONFIG (2026-07-15): bumped from the normal 5/30/3 to stress-test a
-# larger batch per Ted's request. Revert to TARGET_COMPANY_COUNT=5,
-# MAX_SEARCHES=30, MAX_VERIFICATION_ROUNDS=3 when told to.
-TARGET_COMPANY_COUNT = 15
-MAX_SEARCHES = 60
-MAX_VERIFICATION_ROUNDS = 15
+TARGET_COMPANY_COUNT = 5
+MAX_SEARCHES = 30
+MAX_VERIFICATION_ROUNDS = 3
 MAX_TOKENS = 32000
 
 GMAIL_USER_ID = "pg-test-ee614ebd-aec6-462f-ba1c-0399d74feadd"
@@ -230,9 +227,24 @@ def _is_posting_live(exa, company: dict) -> bool:
     return not any(phrase in text for phrase in CLOSED_POSTING_PHRASES)
 
 
-def match_companies(resume: str, role: str, location: str) -> list:
+def match_companies(
+    resume: str,
+    role: str,
+    location: str,
+    angle: str = None,
+    already_seen: list = None,
+) -> list:
     """Ask Claude to find TARGET_COMPANY_COUNT companies matching the
     resume/role/location, using Exa search.
+
+    angle is an optional steering hint for this call (e.g. "healthcare
+    SaaS companies" or "sub-200-employee startups") — useful for callers
+    that invoke this repeatedly and want genuinely different results each
+    time rather than the same well-known companies.
+
+    already_seen is an optional list of company names to avoid
+    re-recommending (e.g. companies a caller has already collected from
+    prior calls).
 
     Returns the parsed JSON array (list of dicts) from Claude's response.
     """
@@ -254,12 +266,16 @@ def match_companies(resume: str, role: str, location: str) -> list:
         result = exa.search(query, num_results=5, contents={"highlights": True})
         return _format_results(result.results)
 
-    messages = [
-        {
-            "role": "user",
-            "content": f"Resume:\n{resume}\n\nTarget role: {role}\nLocation: {location}",
-        }
-    ]
+    user_content = f"Resume:\n{resume}\n\nTarget role: {role}\nLocation: {location}"
+    if angle:
+        user_content += f"\n\nSearch angle for this round: {angle}"
+    if already_seen:
+        user_content += (
+            "\n\nDo NOT recommend any of these companies — already found in "
+            f"a prior search: {', '.join(already_seen)}"
+        )
+
+    messages = [{"role": "user", "content": user_content}]
 
     # Tracks the best verified set found so far. If a later round breaks
     # format (e.g. Claude runs out of search budget and responds with a

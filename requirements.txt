@@ -5,4 +5,5 @@ exa-py==2.16.0
 fastapi
 python-dotenv==1.2.2
 requests
+supabase
 uvicorn
