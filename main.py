@@ -6,8 +6,8 @@ from pydantic import BaseModel
 from company_matcher import match_companies
 from company_recommender import (
     COMPANY_SIZE_OPTIONS,
+    LOCAL_RADIUS_MILES,
     TARGET_COMPANY_COUNT,
-    WORKSITE_OPTIONS,
     recommend_companies,
 )
 
@@ -40,23 +40,18 @@ class RecommendRequest(BaseModel):
     role: str
     location: str
     company_size: str
-    worksite_ranking: list[str]
+    include_remote: bool
 
 
 @app.post("/recommend")
 def recommend(request: RecommendRequest):
-    if sorted(request.worksite_ranking) != sorted(WORKSITE_OPTIONS):
-        raise HTTPException(
-            status_code=400,
-            detail=f"worksite_ranking must contain exactly these 3 values, ranked: {WORKSITE_OPTIONS}",
-        )
     try:
         return recommend_companies(
             request.resume,
             request.role,
             request.location,
             request.company_size,
-            request.worksite_ranking,
+            request.include_remote,
         )
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
@@ -259,9 +254,6 @@ def demo():
 _COMPANY_SIZE_OPTIONS_HTML = "\n".join(
     f'<option value="{opt}">{opt}</option>' for opt in COMPANY_SIZE_OPTIONS
 )
-_WORKSITE_OPTIONS_HTML = "\n".join(
-    f'<option value="{opt}">{opt}</option>' for opt in WORKSITE_OPTIONS
-)
 
 RECOMMEND_DEMO_HTML = f"""<!doctype html>
 <html lang="en">
@@ -291,12 +283,14 @@ RECOMMEND_DEMO_HTML = f"""<!doctype html>
     color: FieldText;
   }}
   textarea {{ min-height: 140px; resize: vertical; }}
-  .worksite-ranking {{
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 0.75rem;
+  .checkbox-row {{
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 1rem;
   }}
-  .worksite-ranking div label {{ font-weight: 400; font-size: 0.85rem; margin-top: 0; }}
+  .checkbox-row input {{ width: auto; }}
+  .checkbox-row label {{ font-weight: 400; margin: 0; }}
   button {{
     margin-top: 1.25rem;
     padding: 0.65rem 1.25rem;
@@ -367,27 +361,15 @@ RECOMMEND_DEMO_HTML = f"""<!doctype html>
 
   <label for="location">Location</label>
   <input id="location" type="text" placeholder="e.g. Austin, TX">
+  <div class="checkbox-row">
+    <input id="include-remote" type="checkbox">
+    <label for="include-remote">Include remote-friendly companies (in addition to companies with a local office within {LOCAL_RADIUS_MILES} miles)</label>
+  </div>
 
   <label for="company-size">Preferred company size</label>
   <select id="company-size">
 {_COMPANY_SIZE_OPTIONS_HTML}
   </select>
-
-  <label>Worksite preference (rank 1st to 3rd)</label>
-  <div class="worksite-ranking">
-    <div>
-      <label for="worksite-1">1st choice</label>
-      <select id="worksite-1">{_WORKSITE_OPTIONS_HTML}</select>
-    </div>
-    <div>
-      <label for="worksite-2">2nd choice</label>
-      <select id="worksite-2">{_WORKSITE_OPTIONS_HTML}</select>
-    </div>
-    <div>
-      <label for="worksite-3">3rd choice</label>
-      <select id="worksite-3">{_WORKSITE_OPTIONS_HTML}</select>
-    </div>
-  </div>
 
   <button id="submit-btn">Find {TARGET_COMPANY_COUNT} target companies →</button>
   <div id="status"></div>
@@ -415,8 +397,8 @@ function renderCard(company) {{
     <dl>
       <dt>Size Estimate</dt>
       <dd>${{field(company.size_estimate)}}</dd>
-      <dt>Worksite Match</dt>
-      <dd>${{field(company.worksite_match)}}</dd>
+      <dt>Location Match</dt>
+      <dd>${{field(company.location_match)}}</dd>
       <dt>Growth / Leadership Note</dt>
       <dd>${{field(company.growth_note)}}</dd>
       <dt>Fit Rationale</dt>
@@ -431,11 +413,7 @@ document.getElementById("submit-btn").addEventListener("click", async () => {{
   const role = document.getElementById("role").value;
   const location = document.getElementById("location").value;
   const companySize = document.getElementById("company-size").value;
-  const worksiteRanking = [
-    document.getElementById("worksite-1").value,
-    document.getElementById("worksite-2").value,
-    document.getElementById("worksite-3").value,
-  ];
+  const includeRemote = document.getElementById("include-remote").checked;
 
   const statusEl = document.getElementById("status");
   const resultsEl = document.getElementById("results");
@@ -446,12 +424,6 @@ document.getElementById("submit-btn").addEventListener("click", async () => {{
   resultsEl.innerHTML = "";
   jsonDetailsEl.style.display = "none";
   jsonDetailsEl.open = false;
-
-  if (new Set(worksiteRanking).size !== 3) {{
-    statusEl.textContent = "Error: each worksite choice must be ranked differently — no duplicates.";
-    return;
-  }}
-
   statusEl.textContent = "Searching...";
   btn.disabled = true;
 
@@ -462,7 +434,7 @@ document.getElementById("submit-btn").addEventListener("click", async () => {{
       body: JSON.stringify({{
         resume, role, location,
         company_size: companySize,
-        worksite_ranking: worksiteRanking,
+        include_remote: includeRemote,
       }}),
     }});
 
