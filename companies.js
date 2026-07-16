@@ -69,9 +69,37 @@ function dedupeByCompanyName(candidates) {
   return Array.from(seen.values()).sort((a, b) => (a.rank || Infinity) - (b.rank || Infinity));
 }
 
+function scopeKey(c) {
+  return [c.role, c.location, c.company_size, c.include_remote].join('|');
+}
+
+// Different searches (different role/location/size/remote) can produce
+// completely unrelated companies -- showing them all merged in one grid
+// reads as broken. Instead, only show the most recently created search's
+// results, identified by whichever row has the latest created_at.
+function filterToMostRecentSearch(candidates) {
+  if (candidates.length === 0) return { scope: null, rows: [] };
+
+  const mostRecent = candidates.reduce((latest, c) =>
+    new Date(c.created_at) > new Date(latest.created_at) ? c : latest
+  );
+  const key = scopeKey(mostRecent);
+  const rows = candidates.filter((c) => scopeKey(c) === key);
+  return { scope: mostRecent, rows };
+}
+
+function describeScope(scope) {
+  const parts = [scope.role, scope.location, scope.company_size];
+  let text = `Showing: ${parts.join(' — ')}`;
+  if (scope.include_remote) text += ' (+ remote-friendly)';
+  return text;
+}
+
 async function loadCompanies() {
   const list = document.getElementById('companies-list');
+  const scopeLabel = document.getElementById('companies-scope-label');
   list.innerHTML = '<p class="kanban-empty">Loading...</p>';
+  scopeLabel.textContent = '';
 
   let data;
   try {
@@ -90,7 +118,8 @@ async function loadCompanies() {
 
   list.innerHTML = '';
 
-  const companies = dedupeByCompanyName(data || []);
+  const { scope, rows } = filterToMostRecentSearch(data || []);
+  const companies = dedupeByCompanyName(rows);
 
   if (companies.length === 0) {
     const empty = document.createElement('p');
@@ -101,6 +130,7 @@ async function loadCompanies() {
     return;
   }
 
+  scopeLabel.textContent = describeScope(scope);
   companies.forEach((company) => list.appendChild(renderCompany(company)));
 }
 
