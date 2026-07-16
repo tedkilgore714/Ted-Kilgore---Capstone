@@ -96,9 +96,11 @@ def shortlist(request: ShortlistRequest, background_tasks: BackgroundTasks):
 
 
 @app.get("/candidates")
-def candidates(role: str = None, location: str = None, company_size: str = None, include_remote: bool = None):
+def candidates(email: str = None, role: str = None, location: str = None, company_size: str = None, include_remote: bool = None):
     supabase = get_supabase_client()
     query = supabase.table("candidates").select("*")
+    if email is not None:
+        query = query.eq("email", email)
     if role is not None:
         query = query.eq("role", role)
     if location is not None:

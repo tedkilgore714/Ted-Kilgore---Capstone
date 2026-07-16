@@ -81,7 +81,7 @@ function dedupeByCompanyName(candidates) {
 }
 
 function scopeKey(c) {
-  return [c.role, c.location, c.company_size, c.include_remote].join('|');
+  return [c.email, c.role, c.location, c.company_size, c.include_remote].join('|');
 }
 
 function lastTouched(c) {

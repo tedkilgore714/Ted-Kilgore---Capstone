@@ -126,13 +126,18 @@ def _dedupe_key(name: str) -> str:
     return name.strip().lower()
 
 
-def _fetch_existing_candidates(supabase, role: str, location: str, company_size: str, include_remote: bool) -> list:
-    """Candidates are scoped to the exact search that found them, so a
-    different role/location/etc. starts its own independent shortlist
-    instead of colliding with — or being blocked by — an unrelated one."""
+def _fetch_existing_candidates(supabase, email: str, role: str, location: str, company_size: str, include_remote: bool) -> list:
+    """Candidates are scoped to the exact search that found them, including
+    who ran it -- so two different people searching the same role/location/
+    size/remote don't collide (the second person would otherwise just get
+    the first person's saved results without ever running their own
+    search), and a different role/location/etc. starts its own independent
+    shortlist instead of colliding with — or being blocked by — an
+    unrelated one."""
     response = (
         supabase.table("candidates")
         .select("*")
+        .eq("email", email)
         .eq("role", role)
         .eq("location", location)
         .eq("company_size", company_size)
@@ -147,6 +152,7 @@ def _save_new_candidates(
     supabase,
     companies: list,
     seen_keys: set,
+    email: str,
     role: str,
     location: str,
     company_size: str,
@@ -169,6 +175,7 @@ def _save_new_candidates(
                 "location_match": c.get("location_match"),
                 "growth_note": c.get("growth_note"),
                 "fit_rationale": c.get("fit_rationale"),
+                "email": email,
                 "role": role,
                 "location": location,
                 "company_size": company_size,
@@ -310,7 +317,7 @@ def build_shortlist(
     claude = Anthropic(api_key=anthropic_key, timeout=600.0)
     supabase = get_supabase_client()
 
-    existing = _fetch_existing_candidates(supabase, role, location, company_size, include_remote)
+    existing = _fetch_existing_candidates(supabase, recipient_email, role, location, company_size, include_remote)
     seen_keys = {_dedupe_key(row["company_name"]) for row in existing}
     all_saved = list(existing)
 
@@ -363,7 +370,7 @@ def build_shortlist(
             print(f"[iteration {iteration}] error: CompanyRecommender call failed after retries ({e})", flush=True)
             companies = []
 
-        new_rows = _save_new_candidates(supabase, companies, seen_keys, role, location, company_size, include_remote)
+        new_rows = _save_new_candidates(supabase, companies, seen_keys, recipient_email, role, location, company_size, include_remote)
         all_saved.extend(new_rows)
         print(
             f"[iteration {iteration}] act: CompanyRecommender returned {len(companies)} "
