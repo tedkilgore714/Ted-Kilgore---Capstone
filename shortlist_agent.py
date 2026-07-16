@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import time
 from datetime import date
 
 from anthropic import Anthropic
@@ -199,6 +200,24 @@ def _pick_next_angle(claude, messages: list) -> tuple:
     return tool_use.input.get("angle", ""), tool_use.id, response.content
 
 
+def _recommend_with_retry(resume, role, location, company_size, include_remote, angle, already_seen, max_attempts=3):
+    """CompanyRecommender occasionally hits transient Anthropic errors (e.g.
+    529 Overloaded) — retry a couple times with a short backoff before
+    giving up on this angle, instead of treating one hiccup as 0 results."""
+    for attempt in range(1, max_attempts + 1):
+        try:
+            return recommend_companies(
+                resume, role, location, company_size, include_remote,
+                angle=angle, already_seen=already_seen,
+            )
+        except Exception as e:
+            if attempt == max_attempts:
+                raise
+            delay = 5 * attempt
+            print(f"  retry: CompanyRecommender attempt {attempt} failed ({e}) — retrying in {delay}s", flush=True)
+            time.sleep(delay)
+
+
 def _rank_by_fit(claude, resume: str, role: str, rows: list) -> list:
     """Ask Claude to rank the full saved set by fit, best first. Falls back
     to the existing order if ranking fails for any reason — dedupe/save
@@ -311,8 +330,13 @@ def build_shortlist(
         try:
             angle, tool_use_id, assistant_content = _pick_next_angle(claude, messages)
         except Exception as e:
-            print(f"[iteration {iteration}] error: failed to get next angle from Claude ({e}) — stopping", flush=True)
-            break
+            # A malformed/stale conversation history (or any other transient
+            # failure) shouldn't kill the whole run -- drop the accumulated
+            # history back to the original instructions and try again on
+            # the next iteration instead of aborting.
+            print(f"[iteration {iteration}] error: failed to get next angle from Claude ({e}) — resetting and retrying", flush=True)
+            messages = [messages[0]]
+            continue
 
         print(f'[iteration {iteration}] think: next angle — "{angle}"', flush=True)
         messages.append({"role": "assistant", "content": assistant_content})
@@ -320,7 +344,7 @@ def build_shortlist(
         print(f'[iteration {iteration}] act: calling CompanyRecommender with angle "{angle}"', flush=True)
         already_seen_names = [row["company_name"] for row in all_saved]
         try:
-            companies = recommend_companies(
+            companies = _recommend_with_retry(
                 resume,
                 role,
                 location,
@@ -330,7 +354,7 @@ def build_shortlist(
                 already_seen=already_seen_names,
             )
         except Exception as e:
-            print(f"[iteration {iteration}] error: CompanyRecommender call failed ({e})", flush=True)
+            print(f"[iteration {iteration}] error: CompanyRecommender call failed after retries ({e})", flush=True)
             companies = []
 
         new_rows = _save_new_candidates(supabase, companies, seen_keys, role, location, company_size, include_remote)
