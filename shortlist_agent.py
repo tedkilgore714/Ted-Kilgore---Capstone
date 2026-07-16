@@ -24,8 +24,8 @@ TARGET_COUNT = 30
 MAX_TOOL_CALLS = 5
 
 GMAIL_USER_ID = "pg-test-ee614ebd-aec6-462f-ba1c-0399d74feadd"
-GMAIL_DRAFT_TOOL_VERSION = "20260702_01"
-RECIPIENT_EMAIL = "aijobscout@gmail.com"
+GMAIL_TOOL_VERSION = "20260702_01"
+RECIPIENT_EMAIL = "tedkilgore714@gmail.com"
 
 SEARCH_COMPANIES_TOOL = {
     "name": "search_companies",
@@ -253,9 +253,9 @@ def _build_digest(ranked_rows: list) -> str:
 def _send_digest_email(ranked_rows: list) -> None:
     composio = Composio(api_key=os.environ["COMPOSIO_API_KEY"])
     composio.tools.execute(
-        slug="GMAIL_CREATE_EMAIL_DRAFT",
+        slug="GMAIL_SEND_EMAIL",
         user_id=GMAIL_USER_ID,
-        version=GMAIL_DRAFT_TOOL_VERSION,
+        version=GMAIL_TOOL_VERSION,
         arguments={
             "recipient_email": RECIPIENT_EMAIL,
             "subject": f"Job Scout Shortlist — {len(ranked_rows)} companies ({date.today().isoformat()})",
