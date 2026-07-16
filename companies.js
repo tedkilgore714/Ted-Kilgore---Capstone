@@ -1,15 +1,14 @@
 const API_BASE = 'https://ted-kilgore-capstone.onrender.com';
 
-// Careers-page links: the Agent's underlying research (CompanyRecommender)
+// Jobs-board links: the Agent's underlying research (CompanyRecommender)
 // doesn't collect a verified job-posting URL for each company -- only the
-// Matcher does that. For now we omit the link rather than show something
-// unverified. Flip CAREERS_LINK_MODE to 'google' to fall back to a Google
-// search for "{company} careers" instead of omitting it.
-const CAREERS_LINK_MODE = 'omit'; // 'omit' | 'google'
+// Matcher does that -- so this is a best-effort Google search for the
+// company's jobs board rather than a link to a specific posting.
+const CAREERS_LINK_MODE = 'google'; // 'omit' | 'google'
 
 function getCareersLink(company) {
   if (CAREERS_LINK_MODE === 'google') {
-    return `https://www.google.com/search?q=${encodeURIComponent(company.company_name + ' careers')}`;
+    return `https://www.google.com/search?q=${encodeURIComponent(company.company_name + ' jobs')}`;
   }
   return null;
 }
@@ -53,7 +52,7 @@ function renderCompany(company) {
     link.href = careersLink;
     link.target = '_blank';
     link.rel = 'noopener noreferrer';
-    link.textContent = 'Careers page';
+    link.textContent = 'Jobs board';
     card.appendChild(link);
   }
 
