@@ -145,6 +145,7 @@ shortlistForm.addEventListener('submit', async (event) => {
 
   const payload = {
     resume: document.getElementById('shortlist-resume').value,
+    email: document.getElementById('shortlist-email').value,
     role: document.getElementById('shortlist-role').value,
     location: document.getElementById('shortlist-location').value,
     company_size: document.getElementById('shortlist-size').value,
@@ -161,7 +162,7 @@ shortlistForm.addEventListener('submit', async (event) => {
     const result = await response.json();
     shortlistStatus.textContent =
       result.message ||
-      'Shortlist search started — this takes about 5-10 minutes. Check your email when it\'s done, or refresh this page.';
+      `Shortlist search started — this takes about 5-10 minutes. Results will be emailed to ${payload.email} when it's done, or refresh this page.`;
   } catch (error) {
     console.error('Failed to start shortlist search', error);
     shortlistStatus.textContent = `Error: ${error.message}`;

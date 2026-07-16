@@ -64,15 +64,16 @@ class ShortlistRequest(BaseModel):
     location: str
     company_size: str
     include_remote: bool
+    email: str
 
 
-def _run_shortlist_job(resume: str, role: str, location: str, company_size: str, include_remote: bool) -> None:
+def _run_shortlist_job(resume: str, role: str, location: str, company_size: str, include_remote: bool, email: str) -> None:
     """Runs in the background after /shortlist responds. Errors are logged
     server-side (visible in Render logs) rather than raised — the client
     already got its "started" response, and a failure here just means the
     digest email won't arrive."""
     try:
-        build_shortlist(resume, role, location, company_size, include_remote)
+        build_shortlist(resume, role, location, company_size, include_remote, email)
     except Exception as e:
         print(f"[/shortlist background job] failed: {e}", flush=True)
 
@@ -86,10 +87,11 @@ def shortlist(request: ShortlistRequest, background_tasks: BackgroundTasks):
         request.location,
         request.company_size,
         request.include_remote,
+        request.email,
     )
     return {
         "status": "started",
-        "message": "Shortlist search started — this takes about 5-10 minutes. Check your email when it's done, or view /candidates-demo.",
+        "message": f"Shortlist search started — this takes about 5-10 minutes. Results will be emailed to {request.email} when it's done, or view /candidates-demo.",
     }
 
 
@@ -577,6 +579,10 @@ SHORTLIST_DEMO_HTML = f"""<!doctype html>
   <label for="resume">Resume</label>
   <textarea id="resume" placeholder="Paste your resume here..."></textarea>
 
+  <label for="email">Email</label>
+  <input id="email" type="email" placeholder="you@example.com">
+  <p style="font-size:0.85rem;color:#666;margin:0.25rem 0 0;">Your shortlist digest gets sent here when the search finishes.</p>
+
   <label for="role">Target role</label>
   <input id="role" type="text" placeholder="e.g. Director of Professional Services">
 
@@ -598,6 +604,7 @@ SHORTLIST_DEMO_HTML = f"""<!doctype html>
 <script>
 document.getElementById("submit-btn").addEventListener("click", async () => {{
   const resume = document.getElementById("resume").value;
+  const email = document.getElementById("email").value;
   const role = document.getElementById("role").value;
   const location = document.getElementById("location").value;
   const companySize = document.getElementById("company-size").value;
@@ -614,7 +621,7 @@ document.getElementById("submit-btn").addEventListener("click", async () => {{
       method: "POST",
       headers: {{ "Content-Type": "application/json" }},
       body: JSON.stringify({{
-        resume, role, location,
+        resume, email, role, location,
         company_size: companySize,
         include_remote: includeRemote,
       }}),
