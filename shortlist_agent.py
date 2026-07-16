@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from datetime import date
 
 from anthropic import Anthropic
@@ -10,6 +11,8 @@ from supabase import create_client
 from company_recommender import recommend_companies
 
 load_dotenv(os.path.join(os.path.dirname(__file__), "aijobscout.env"))
+
+CONFIG_JS_PATH = os.path.join(os.path.dirname(__file__), "config.js")
 
 MODEL = "claude-sonnet-5"
 TARGET_COUNT = 30
@@ -80,16 +83,74 @@ def _require_env(name: str) -> str:
     return value
 
 
+def _require_env_any(*names: str) -> str:
+    """Like _require_env, but accepts any of several possible names for the
+    same secret. Local aijobscout.env and Render currently use different
+    names for the Supabase service-role-equivalent key
+    (SUPABASE_SERVICE_ROLE_KEY vs SUPABASE_SECRET_KEY) — this avoids the
+    two environments needing to agree on one name."""
+    for name in names:
+        value = os.environ.get(name)
+        if value:
+            return value
+    raise SystemExit(
+        f"Missing required environment variable (tried: {', '.join(names)}). "
+        f"Add one of these before running shortlist_agent.py."
+    )
+
+
+def _get_supabase_url() -> str:
+    """SUPABASE_URL isn't set as an env var on Render — like daily_digest.py,
+    read it out of config.js instead, which is deployed with the rest of
+    the repo. Falls back to the env var if config.js doesn't have it."""
+    try:
+        text = open(CONFIG_JS_PATH).read()
+        match = re.search(r"SUPABASE_URL\s*=\s*'([^']+)'", text)
+        if match:
+            return match.group(1)
+    except FileNotFoundError:
+        pass
+    return _require_env("SUPABASE_URL")
+
+
+def get_supabase_client():
+    """Shared connection helper — used by build_shortlist() below and by
+    main.py's /candidates endpoint, so both resolve the URL/key the same
+    way instead of duplicating the env-var/config.js fallback logic."""
+    supabase_key = _require_env_any("SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_SECRET_KEY")
+    return create_client(_get_supabase_url(), supabase_key)
+
+
 def _dedupe_key(name: str) -> str:
     return name.strip().lower()
 
 
-def _fetch_existing_candidates(supabase) -> list:
-    response = supabase.table("candidates").select("*").order("rank").execute()
+def _fetch_existing_candidates(supabase, role: str, location: str, company_size: str, include_remote: bool) -> list:
+    """Candidates are scoped to the exact search that found them, so a
+    different role/location/etc. starts its own independent shortlist
+    instead of colliding with — or being blocked by — an unrelated one."""
+    response = (
+        supabase.table("candidates")
+        .select("*")
+        .eq("role", role)
+        .eq("location", location)
+        .eq("company_size", company_size)
+        .eq("include_remote", include_remote)
+        .order("rank")
+        .execute()
+    )
     return response.data or []
 
 
-def _save_new_candidates(supabase, companies: list, seen_keys: set) -> list:
+def _save_new_candidates(
+    supabase,
+    companies: list,
+    seen_keys: set,
+    role: str,
+    location: str,
+    company_size: str,
+    include_remote: bool,
+) -> list:
     """Insert companies not already in seen_keys. Returns the newly inserted rows (with their DB ids)."""
     rows_to_insert = []
     for c in companies:
@@ -107,6 +168,10 @@ def _save_new_candidates(supabase, companies: list, seen_keys: set) -> list:
                 "location_match": c.get("location_match"),
                 "growth_note": c.get("growth_note"),
                 "fit_rationale": c.get("fit_rationale"),
+                "role": role,
+                "location": location,
+                "company_size": company_size,
+                "include_remote": include_remote,
             }
         )
     if not rows_to_insert:
@@ -214,14 +279,12 @@ def build_shortlist(
     a single recommend_companies() call already targets ~TARGET_COUNT.
     """
     anthropic_key = _require_env("ANTHROPIC_API_KEY")
-    supabase_url = _require_env("SUPABASE_URL")
-    supabase_key = _require_env("SUPABASE_SERVICE_ROLE_KEY")
     _require_env("COMPOSIO_API_KEY")
 
     claude = Anthropic(api_key=anthropic_key, timeout=600.0)
-    supabase = create_client(supabase_url, supabase_key)
+    supabase = get_supabase_client()
 
-    existing = _fetch_existing_candidates(supabase)
+    existing = _fetch_existing_candidates(supabase, role, location, company_size, include_remote)
     seen_keys = {_dedupe_key(row["company_name"]) for row in existing}
     all_saved = list(existing)
 
@@ -269,7 +332,7 @@ def build_shortlist(
             print(f"[iteration {iteration}] error: CompanyRecommender call failed ({e})", flush=True)
             companies = []
 
-        new_rows = _save_new_candidates(supabase, companies, seen_keys)
+        new_rows = _save_new_candidates(supabase, companies, seen_keys, role, location, company_size, include_remote)
         all_saved.extend(new_rows)
         print(
             f"[iteration {iteration}] act: CompanyRecommender returned {len(companies)} "
