@@ -1,5 +1,11 @@
 const API_BASE = 'https://ted-kilgore-capstone.onrender.com';
 
+// Must match TARGET_COUNT in shortlist_agent.py -- caps what's shown here
+// as defense-in-depth in case a scope ever has more rows saved than the
+// current target (e.g. from before a target change), even though the
+// backend now caps what it ranks/emails too.
+const DISPLAY_LIMIT = 10;
+
 // Jobs-board links: the Agent's underlying research (CompanyRecommender)
 // doesn't collect a verified job-posting URL for each company -- only the
 // Matcher does that -- so this is a best-effort Google search for the
@@ -69,22 +75,32 @@ function dedupeByCompanyName(candidates) {
       seen.set(key, c);
     }
   }
-  return Array.from(seen.values()).sort((a, b) => (a.rank || Infinity) - (b.rank || Infinity));
+  return Array.from(seen.values())
+    .sort((a, b) => (a.rank || Infinity) - (b.rank || Infinity))
+    .slice(0, DISPLAY_LIMIT);
 }
 
 function scopeKey(c) {
   return [c.role, c.location, c.company_size, c.include_remote].join('|');
 }
 
+function lastTouched(c) {
+  return c.updated_at || c.created_at;
+}
+
 // Different searches (different role/location/size/remote) can produce
 // completely unrelated companies -- showing them all merged in one grid
-// reads as broken. Instead, only show the most recently created search's
-// results, identified by whichever row has the latest created_at.
+// reads as broken. Instead, only show the most recently touched search's
+// results. Uses updated_at (falling back to created_at) rather than
+// created_at alone, because re-running a scope that's already at the
+// target count saves 0 new rows -- created_at never changes, but
+// updated_at does (the agent still re-ranks and bumps it), so this is
+// what makes a re-run actually show up as "current" here.
 function filterToMostRecentSearch(candidates) {
   if (candidates.length === 0) return { scope: null, rows: [] };
 
   const mostRecent = candidates.reduce((latest, c) =>
-    new Date(c.created_at) > new Date(latest.created_at) ? c : latest
+    new Date(lastTouched(c)) > new Date(lastTouched(latest)) ? c : latest
   );
   const key = scopeKey(mostRecent);
   const rows = candidates.filter((c) => scopeKey(c) === key);

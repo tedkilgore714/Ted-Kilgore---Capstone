@@ -2,7 +2,7 @@ import json
 import os
 import re
 import time
-from datetime import date
+from datetime import date, datetime, timezone
 
 from anthropic import Anthropic
 from composio import Composio
@@ -257,9 +257,15 @@ def _rank_by_fit(claude, resume: str, role: str, rows: list) -> list:
 
 
 def _persist_ranks(supabase, ranked_rows: list) -> None:
+    """Also bumps updated_at, even for rows that already existed and got
+    no new companies added this round -- so a scope that's re-run without
+    finding anything new (e.g. it already had TARGET_COUNT+ saved from
+    before the target changed) still shows up as "just used" on the site,
+    which otherwise only looks at created_at."""
+    now = datetime.now(timezone.utc).isoformat()
     for i, row in enumerate(ranked_rows, 1):
         if row.get("id"):
-            supabase.table("candidates").update({"rank": i}).eq("id", row["id"]).execute()
+            supabase.table("candidates").update({"rank": i, "updated_at": now}).eq("id", row["id"]).execute()
 
 
 def _build_digest(ranked_rows: list) -> str:
@@ -396,6 +402,12 @@ def build_shortlist(
         )
 
     ranked_rows = _rank_by_fit(claude, resume, role, all_saved)
+
+    # Cap at TARGET_COUNT even if this scope has more rows saved than that
+    # -- e.g. from a run made before TARGET_COUNT was lowered. Only the
+    # kept rows get their rank/updated_at refreshed; anything past the cut
+    # keeps its old rank and simply won't be shown or emailed this round.
+    ranked_rows = ranked_rows[:TARGET_COUNT]
     _persist_ranks(supabase, ranked_rows)
 
     try:
