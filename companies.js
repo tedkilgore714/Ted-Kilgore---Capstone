@@ -6,13 +6,14 @@ const API_BASE = 'https://ted-kilgore-capstone.onrender.com';
 // backend now caps what it ranks/emails too.
 const DISPLAY_LIMIT = 10;
 
-// Jobs-board links: the Agent's underlying research (CompanyRecommender)
-// doesn't collect a verified job-posting URL for each company -- only the
-// Matcher does that -- so this is a best-effort Google search for the
-// company's jobs board rather than a link to a specific posting.
-const CAREERS_LINK_MODE = 'google'; // 'omit' | 'google'
+// Jobs-board links: CompanyRecommender now researches each company's
+// actual jobs/careers listing page (jobs_url) via web_search -- best-effort,
+// not live-verified the way company_matcher.py's hiring_signal is. Falls
+// back to a Google search only when it couldn't confidently find one.
+const CAREERS_LINK_MODE = 'google'; // 'omit' | 'google' -- fallback when jobs_url is missing
 
 function getCareersLink(company) {
+  if (company.jobs_url) return company.jobs_url;
   if (CAREERS_LINK_MODE === 'google') {
     return `https://www.google.com/search?q=${encodeURIComponent(company.company_name + ' jobs')}`;
   }
@@ -58,7 +59,7 @@ function renderCompany(company) {
     link.href = careersLink;
     link.target = '_blank';
     link.rel = 'noopener noreferrer';
-    link.textContent = 'Jobs board';
+    link.textContent = company.jobs_url ? 'Jobs board' : 'Search jobs';
     card.appendChild(link);
   }
 

@@ -23,14 +23,21 @@ COMPANY_SIZE_OPTIONS = [
 LOCAL_RADIUS_MILES = 25
 
 TRAILING_COMMA_PATTERN = re.compile(r",(\s*[\]}])")
+URL_PATTERN = re.compile(r"^https?://\S+$")
 
 SYSTEM_PROMPT = (
     "You are a job hunt strategist. Given a resume, target role, location, a "
     "preferred company size range, and whether to include remote-friendly "
     f"companies, use web_search to recommend EXACTLY {TARGET_COMPANY_COUNT} "
     "companies that are a strong fit for the candidate to target.\n\n"
-    "This is NOT about finding a specific open job posting — do not include a "
-    "hiring_signal or job posting URL. Use web_search sparingly, only to "
+    "This is NOT about finding a specific open job posting — do not try to "
+    "find or include a link to a specific req/listing. Do, for each company, "
+    "use one web_search to find its actual jobs/careers listing page (the "
+    "page that lists all of its open roles, e.g. a company's own /careers "
+    "page or its Greenhouse/Lever/Workday/Ashby board) and return that as "
+    "jobs_url — use the real URL from search results, never a guessed or "
+    "constructed one, and use null if you can't confidently find it. Beyond "
+    "that one search per company, use web_search sparingly, only to "
     "spot-check company-level signals (headcount trend, size, leadership "
     "stability) — you do not need to research every single candidate "
     f"exhaustively. Use up to {MAX_SEARCHES} searches total across all "
@@ -66,8 +73,10 @@ SYSTEM_PROMPT = (
     "best-effort note on headcount trend and any leadership-turnover signal "
     "you found — this is best-effort research, not guaranteed-accurate "
     "structured data, so do not present it as verified; use null if you "
-    "found nothing to go on), fit_rationale (2 sentences on why this "
-    f"company fits the resume and role). Return as a JSON array of exactly "
+    "found nothing to go on), jobs_url (the company's actual jobs/careers "
+    "listing page URL, as described above — a bare URL string or null, "
+    "never prose), fit_rationale (2 sentences on why this company fits the "
+    f"resume and role). Return as a JSON array of exactly "
     f"{TARGET_COMPANY_COUNT} companies and nothing else — no prose, no "
     "clarifying questions."
 )
@@ -89,7 +98,16 @@ def _parse_companies_json(text: str) -> list:
     if not match:
         raise ValueError(f"No JSON array found in Claude's response:\n{text}")
     cleaned = TRAILING_COMMA_PATTERN.sub(r"\1", match.group(0))
-    return json.loads(cleaned)
+    companies = json.loads(cleaned)
+
+    # jobs_url must be a bare URL or absent -- never prose from a model
+    # that couldn't find one but explained itself instead of saying null.
+    for company in companies:
+        url = company.get("jobs_url")
+        if url and not URL_PATTERN.match(url):
+            company["jobs_url"] = None
+
+    return companies
 
 
 def recommend_companies(

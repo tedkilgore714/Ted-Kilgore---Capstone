@@ -174,6 +174,7 @@ def _save_new_candidates(
                 "size_estimate": c.get("size_estimate"),
                 "location_match": c.get("location_match"),
                 "growth_note": c.get("growth_note"),
+                "jobs_url": c.get("jobs_url"),
                 "fit_rationale": c.get("fit_rationale"),
                 "email": email,
                 "role": role,
@@ -279,6 +280,8 @@ def _build_digest(ranked_rows: list) -> str:
     lines = [f"Job Scout Shortlist — {len(ranked_rows)} companies ({date.today().isoformat()})", ""]
     for i, row in enumerate(ranked_rows, 1):
         lines.append(f"{i}. {row['company_name']} — {row.get('fit_rationale', '')}")
+        if row.get("jobs_url"):
+            lines.append(f"   Jobs board: {row['jobs_url']}")
     return "\n".join(lines)
 
 

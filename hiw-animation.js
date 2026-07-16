@@ -27,30 +27,32 @@ async function revealSequentially(items, gap) {
 }
 
 async function runHiwAnimation() {
-  const dropzone = document.getElementById('hiw-dropzone');
+  const resume = document.getElementById('hiw-resume');
   const roles = document.getElementById('hiw-roles');
   const rankList = document.getElementById('hiw-location');
   const button = document.getElementById('hiw-generate');
   const resultsPanel = document.getElementById('hiw-results');
-  if (!dropzone || !roles || !rankList || !button || !resultsPanel) return;
+  if (!resume || !roles || !rankList || !button || !resultsPanel) return;
 
+  const resumeText =
+    'Ted Kilgore — Director of Professional Services. 10+ years leading ' +
+    'post-sales and customer success teams at B2B SaaS companies...';
   const rolesText = roles.textContent;
   const rankItems = Array.from(rankList.querySelectorAll('.mockup-rank-item'));
   const results = Array.from(resultsPanel.querySelectorAll('.mockup-result'));
 
-  dropzone.classList.add('js-animated');
   rankList.classList.add('js-animated');
   resultsPanel.classList.add('js-animated');
 
   for (;;) {
-    dropzone.classList.remove('has-file');
+    resume.textContent = '';
     roles.textContent = '';
     rankItems.forEach((item) => item.classList.remove('is-visible'));
     results.forEach((card) => card.classList.remove('is-visible'));
 
     await wait(600);
-    dropzone.classList.add('has-file');
-    await wait(500);
+    await typeText(resume, resumeText, 12);
+    await wait(400);
 
     await typeText(roles, rolesText, 35);
     await wait(300);
