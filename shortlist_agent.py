@@ -15,7 +15,7 @@ load_dotenv(os.path.join(os.path.dirname(__file__), "aijobscout.env"))
 CONFIG_JS_PATH = os.path.join(os.path.dirname(__file__), "config.js")
 
 MODEL = "claude-sonnet-5"
-TARGET_COUNT = 30
+TARGET_COUNT = 10
 
 # company_recommender.py already returns ~TARGET_COUNT companies in a
 # single call (no live-posting verification to cause shortfalls), so this

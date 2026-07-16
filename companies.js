@@ -14,6 +14,24 @@ function getCareersLink(company) {
   return null;
 }
 
+function addCompanyField(card, label, value) {
+  if (!value) return;
+  const field = document.createElement('div');
+  field.className = 'company-card-field';
+
+  const labelEl = document.createElement('span');
+  labelEl.className = 'company-card-label';
+  labelEl.textContent = label;
+  field.appendChild(labelEl);
+
+  const valueEl = document.createElement('p');
+  valueEl.className = 'company-card-value';
+  valueEl.textContent = value;
+  field.appendChild(valueEl);
+
+  card.appendChild(field);
+}
+
 function renderCompany(company) {
   const card = document.createElement('div');
   card.className = 'company-card';
@@ -23,24 +41,10 @@ function renderCompany(company) {
   name.textContent = company.company_name;
   card.appendChild(name);
 
-  const metaParts = [];
-  if (company.size_estimate) metaParts.push(company.size_estimate);
-  if (company.growth_note) metaParts.push(company.growth_note);
-  if (company.location_match) metaParts.push(company.location_match);
-
-  if (metaParts.length) {
-    const meta = document.createElement('div');
-    meta.className = 'company-card-meta';
-    meta.textContent = metaParts.join(' · ');
-    card.appendChild(meta);
-  }
-
-  if (company.fit_rationale) {
-    const why = document.createElement('p');
-    why.className = 'company-card-why';
-    why.textContent = `Why: ${company.fit_rationale}`;
-    card.appendChild(why);
-  }
+  addCompanyField(card, 'Size Estimate', company.size_estimate);
+  addCompanyField(card, 'Location Match', company.location_match);
+  addCompanyField(card, 'Growth / Leadership Note', company.growth_note);
+  addCompanyField(card, 'Fit Rationale', company.fit_rationale);
 
   const careersLink = getCareersLink(company);
   if (careersLink) {
@@ -142,6 +146,12 @@ const shortlistStatus = document.getElementById('shortlist-status');
 shortlistForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   shortlistStatus.textContent = 'Starting...';
+
+  // Clear the previous search's results right away -- leaving them up
+  // while a new search runs reads as if the button did nothing.
+  document.getElementById('companies-scope-label').textContent = '';
+  document.getElementById('companies-list').innerHTML =
+    '<p class="kanban-empty">Search started — your new shortlist will appear here in about 5-10 minutes.</p>';
 
   const payload = {
     resume: document.getElementById('shortlist-resume').value,

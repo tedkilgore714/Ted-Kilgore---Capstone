@@ -10,7 +10,7 @@ load_dotenv(os.path.join(os.path.dirname(__file__), "aijobscout.env"))
 
 MODEL = "claude-sonnet-5"
 MAX_SEARCHES = 40
-TARGET_COMPANY_COUNT = 30
+TARGET_COMPANY_COUNT = 10
 MAX_TOKENS = 32000
 
 COMPANY_SIZE_OPTIONS = [

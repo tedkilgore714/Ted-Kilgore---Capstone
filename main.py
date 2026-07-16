@@ -574,7 +574,7 @@ SHORTLIST_DEMO_HTML = f"""<!doctype html>
 </head>
 <body>
   <h1>AI Job Scout — Shortlist Agent</h1>
-  <p>Builds a 30-company shortlist, saves it, and emails you a digest when done. Takes about 5-10 minutes — no need to keep this tab open.</p>
+  <p>Builds a 10-company shortlist, saves it, and emails you a digest when done. Takes about 5-10 minutes — no need to keep this tab open.</p>
 
   <label for="resume">Resume</label>
   <textarea id="resume" placeholder="Paste your resume here..."></textarea>
