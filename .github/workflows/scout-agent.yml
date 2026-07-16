@@ -1,0 +1,28 @@
+name: Weekly Scout Digest
+
+on:
+  schedule:
+    # Mondays at 12:00 UTC (~7am Central during CDT, 6am during CST).
+    # Adjust the hour if you want the email to land at a different time.
+    - cron: "0 12 * * 1"
+  workflow_dispatch: {}  # adds a "Run workflow" button for manual test runs
+
+jobs:
+  scout:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run scout agent
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
+          COMPOSIO_API_KEY: ${{ secrets.COMPOSIO_API_KEY }}
+        run: python scout_agent.py
