@@ -4,17 +4,17 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Companies &mdash; AI Job Scout</title>
-  <meta name="description" content="The 30 target companies AI Job Scout recommended, each spot-checked for headcount growth, company size, and leadership stability, with a direct link to its live careers page." />
+  <meta name="description" content="Target companies AI Job Scout recommended, each spot-checked for headcount growth, company size, and leadership stability." />
   <link rel="canonical" href="https://ted-kilgore-capstone.vercel.app/companies.html" />
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="AI Job Scout" />
   <meta property="og:url" content="https://ted-kilgore-capstone.vercel.app/companies.html" />
   <meta property="og:title" content="Companies &mdash; AI Job Scout" />
-  <meta property="og:description" content="The 30 target companies AI Job Scout recommended, each spot-checked for headcount growth, company size, and leadership stability, with a direct link to its live careers page." />
+  <meta property="og:description" content="Target companies AI Job Scout recommended, each spot-checked for headcount growth, company size, and leadership stability." />
   <meta property="og:image" content="https://ted-kilgore-capstone.vercel.app/AI-Job-Scout-Logo.png" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Companies &mdash; AI Job Scout" />
-  <meta name="twitter:description" content="The 30 target companies AI Job Scout recommended, each spot-checked for headcount growth, company size, and leadership stability, with a direct link to its live careers page." />
+  <meta name="twitter:description" content="Target companies AI Job Scout recommended, each spot-checked for headcount growth, company size, and leadership stability." />
   <meta name="twitter:image" content="https://ted-kilgore-capstone.vercel.app/AI-Job-Scout-Logo.png" />
   <link rel="stylesheet" href="style.css" />
   <link rel="icon" type="image/png" href="favicon.png" />
@@ -41,196 +41,50 @@
       <section class="hero">
         <h1>My Companies</h1>
         <p class="subhead">
-          The 30 target companies AI Job Scout recommended from my resume and
+          Target companies AI Job Scout recommended from my resume and
           preferences &mdash; each researched for headcount growth, company size,
-          and leadership stability, with a direct link to its careers page. This
-          curated list is what the tool watches for new openings, so every listing
-          comes straight from the source instead of a job board.
+          and leadership stability. Run a new search below with a role, location,
+          and size preference to build a fresh shortlist.
         </p>
       </section>
 
-      <div id="companies-list" class="company-grid">
-        <div class="company-card">
-          <div class="company-card-name">ActiveProspect</div>
-          <div class="company-card-meta">~250 employees &middot; Headcount +12% YoY &middot; Austin hybrid</div>
-          <p class="company-card-why">Why: Consent-based marketing SaaS with a growing customer org; Austin HQ.</p>
-          <a class="kanban-card-link" href="https://activeprospect.com/careers/" target="_blank" rel="noopener noreferrer">Careers page</a>
+      <form id="shortlist-form" class="opening-form">
+        <div class="form-field form-field-wide">
+          <label class="form-label" for="shortlist-resume">Resume</label>
+          <textarea class="form-input" id="shortlist-resume" rows="4" placeholder="Paste your resume here..." required></textarea>
         </div>
-        <div class="company-card">
-          <div class="company-card-name">AffiniPay</div>
-          <div class="company-card-meta">~700 employees &middot; Headcount +15% YoY &middot; Austin hybrid</div>
-          <p class="company-card-why">Why: Payments platform for professional associations; strong PS/CS leadership presence in Austin.</p>
-          <a class="kanban-card-link" href="https://affinipay.com/careers/" target="_blank" rel="noopener noreferrer">Careers page</a>
+        <div class="form-field">
+          <label class="form-label" for="shortlist-role">Target role</label>
+          <input class="form-input" id="shortlist-role" type="text" placeholder="e.g. Director of Professional Services" required />
         </div>
-        <div class="company-card">
-          <div class="company-card-name">AlertMedia</div>
-          <div class="company-card-meta">~500 employees &middot; Headcount +20% YoY &middot; Austin hybrid</div>
-          <p class="company-card-why">Why: Emergency communication SaaS with a customer-heavy org; Austin HQ.</p>
-          <a class="kanban-card-link" href="https://www.alertmedia.com/careers/" target="_blank" rel="noopener noreferrer">Careers page</a>
+        <div class="form-field">
+          <label class="form-label" for="shortlist-location">Location</label>
+          <input class="form-input" id="shortlist-location" type="text" placeholder="e.g. Austin, TX" required />
         </div>
-        <div class="company-card">
-          <div class="company-card-name">BigCommerce</div>
-          <div class="company-card-meta">~1,200 employees &middot; Steady, enterprise push &middot; Austin hybrid</div>
-          <p class="company-card-why">Why: Ecommerce platform with services and partner orgs; Austin HQ.</p>
-          <a class="kanban-card-link" href="https://careers.bigcommerce.com/" target="_blank" rel="noopener noreferrer">Careers page</a>
+        <div class="form-field">
+          <label class="form-label" for="shortlist-size">Preferred company size</label>
+          <select class="form-input" id="shortlist-size">
+            <option>Small (1-200 employees)</option>
+            <option>Mid-size (201-1,000 employees)</option>
+            <option>Large (1,001-5,000 employees)</option>
+            <option>Enterprise (5,000+ employees)</option>
+          </select>
         </div>
-        <div class="company-card">
-          <div class="company-card-name">Billd</div>
-          <div class="company-card-meta">~200 employees &middot; Headcount +25% YoY &middot; Austin on-site</div>
-          <p class="company-card-why">Why: Construction fintech scaling customer operations from Austin.</p>
-          <a class="kanban-card-link" href="https://billd.com/careers/" target="_blank" rel="noopener noreferrer">Careers page</a>
+        <div class="form-field">
+          <label class="form-label" for="shortlist-remote">
+            <input id="shortlist-remote" type="checkbox" />
+            Include remote-friendly companies (in addition to a local office within 25 miles)
+          </label>
         </div>
-        <div class="company-card">
-          <div class="company-card-name">Bloomerang</div>
-          <div class="company-card-meta">~500 employees &middot; Growing via acquisitions &middot; Remote (national)</div>
-          <p class="company-card-why">Why: Nonprofit CRM consolidating its market; building out services leadership.</p>
-          <a class="kanban-card-link" href="https://bloomerang.co/careers/" target="_blank" rel="noopener noreferrer">Careers page</a>
-        </div>
-        <div class="company-card">
-          <div class="company-card-name">CrowdStreet</div>
-          <div class="company-card-meta">~200 employees &middot; Rebuilding under new leadership &middot; Austin hybrid</div>
-          <p class="company-card-why">Why: Commercial real estate investing platform relocated to Austin; investor-services org.</p>
-          <a class="kanban-card-link" href="https://www.crowdstreet.com/careers" target="_blank" rel="noopener noreferrer">Careers page</a>
-        </div>
-        <div class="company-card">
-          <div class="company-card-name">Degreed</div>
-          <div class="company-card-meta">~700 employees &middot; Stable to growing &middot; Remote (national)</div>
-          <p class="company-card-why">Why: Workforce upskilling platform with an enterprise CS/PS org.</p>
-          <a class="kanban-card-link" href="https://degreed.com/about/careers" target="_blank" rel="noopener noreferrer">Careers page</a>
-        </div>
-        <div class="company-card">
-          <div class="company-card-name">Dialpad</div>
-          <div class="company-card-meta">~1,300 employees &middot; Headcount +10% YoY &middot; Remote (national)</div>
-          <p class="company-card-why">Why: AI communications platform with a sizable professional services team.</p>
-          <a class="kanban-card-link" href="https://www.dialpad.com/careers" target="_blank" rel="noopener noreferrer">Careers page</a>
-        </div>
-        <div class="company-card">
-          <div class="company-card-name">findhelp</div>
-          <div class="company-card-meta">~300 employees &middot; Headcount +10% YoY &middot; Austin hybrid</div>
-          <p class="company-card-why">Why: Social-care network; mission-driven implementation services; Austin HQ.</p>
-          <a class="kanban-card-link" href="https://company.findhelp.com/careers/" target="_blank" rel="noopener noreferrer">Careers page</a>
-        </div>
-        <div class="company-card">
-          <div class="company-card-name">Gong</div>
-          <div class="company-card-meta">~1,400 employees &middot; Headcount +8% YoY &middot; Remote / hybrid hubs</div>
-          <p class="company-card-why">Why: Revenue AI leader with mature PS and CS organizations.</p>
-          <a class="kanban-card-link" href="https://www.gong.io/careers/" target="_blank" rel="noopener noreferrer">Careers page</a>
-        </div>
-        <div class="company-card">
-          <div class="company-card-name">Guru</div>
-          <div class="company-card-meta">~200 employees &middot; Lean, profitable growth &middot; Remote (national)</div>
-          <p class="company-card-why">Why: Knowledge-management SaaS with senior CS leadership scope.</p>
-          <a class="kanban-card-link" href="https://www.getguru.com/careers" target="_blank" rel="noopener noreferrer">Careers page</a>
-        </div>
-        <div class="company-card">
-          <div class="company-card-name">Iodine Software</div>
-          <div class="company-card-meta">~600 employees &middot; Headcount +15% YoY &middot; Austin hybrid</div>
-          <p class="company-card-why">Why: Healthcare AI with a clinical implementation services org; Austin HQ.</p>
-          <a class="kanban-card-link" href="https://iodinesoftware.com/careers/" target="_blank" rel="noopener noreferrer">Careers page</a>
-        </div>
-        <div class="company-card">
-          <div class="company-card-name">Jungle Scout</div>
-          <div class="company-card-meta">~300 employees &middot; Steady &middot; Austin hybrid</div>
-          <p class="company-card-why">Why: Ecommerce intelligence platform scaling its customer org; Austin HQ.</p>
-          <a class="kanban-card-link" href="https://www.junglescout.com/careers/" target="_blank" rel="noopener noreferrer">Careers page</a>
-        </div>
-        <div class="company-card">
-          <div class="company-card-name">Kajabi</div>
-          <div class="company-card-meta">~400 employees &middot; Headcount +12% YoY &middot; Remote (national)</div>
-          <p class="company-card-why">Why: Creator-economy platform investing in customer success.</p>
-          <a class="kanban-card-link" href="https://kajabi.com/careers" target="_blank" rel="noopener noreferrer">Careers page</a>
-        </div>
-        <div class="company-card">
-          <div class="company-card-name">Lattice</div>
-          <div class="company-card-meta">~700 employees &middot; Recovering growth &middot; Remote (national)</div>
-          <p class="company-card-why">Why: HR tech with an established PS and onboarding practice.</p>
-          <a class="kanban-card-link" href="https://lattice.com/careers" target="_blank" rel="noopener noreferrer">Careers page</a>
-        </div>
-        <div class="company-card">
-          <div class="company-card-name">Living Security</div>
-          <div class="company-card-meta">~100 employees &middot; Headcount +20% YoY &middot; Austin hybrid</div>
-          <p class="company-card-why">Why: Human-risk management startup with services-led delivery; Austin HQ.</p>
-          <a class="kanban-card-link" href="https://www.livingsecurity.com/careers" target="_blank" rel="noopener noreferrer">Careers page</a>
-        </div>
-        <div class="company-card">
-          <div class="company-card-name">LogicMonitor</div>
-          <div class="company-card-meta">~1,000 employees &middot; Headcount +10% YoY &middot; Austin hybrid</div>
-          <p class="company-card-why">Why: Observability platform with a large Austin office and PS org.</p>
-          <a class="kanban-card-link" href="https://www.logicmonitor.com/careers" target="_blank" rel="noopener noreferrer">Careers page</a>
-        </div>
-        <div class="company-card">
-          <div class="company-card-name">Olo</div>
-          <div class="company-card-meta">~700 employees &middot; Steady growth &middot; Remote (national)</div>
-          <p class="company-card-why">Why: Restaurant SaaS with deployment and professional services teams.</p>
-          <a class="kanban-card-link" href="https://www.olo.com/careers" target="_blank" rel="noopener noreferrer">Careers page</a>
-        </div>
-        <div class="company-card">
-          <div class="company-card-name">Ontic</div>
-          <div class="company-card-meta">~500 employees &middot; Headcount +25% YoY &middot; Austin hybrid</div>
-          <p class="company-card-why">Why: Protective intelligence SaaS with a fast-growing services org; Austin HQ.</p>
-          <a class="kanban-card-link" href="https://ontic.co/careers/" target="_blank" rel="noopener noreferrer">Careers page</a>
-        </div>
-        <div class="company-card">
-          <div class="company-card-name">Osano</div>
-          <div class="company-card-meta">~150 employees &middot; Headcount +15% YoY &middot; Austin hybrid</div>
-          <p class="company-card-why">Why: Data privacy platform building out its customer org; Austin HQ.</p>
-          <a class="kanban-card-link" href="https://www.osano.com/company/careers" target="_blank" rel="noopener noreferrer">Careers page</a>
-        </div>
-        <div class="company-card">
-          <div class="company-card-name">Postscript</div>
-          <div class="company-card-meta">~250 employees &middot; Headcount +20% YoY &middot; Remote (national)</div>
-          <p class="company-card-why">Why: SMS marketing for Shopify brands; scaling customer success.</p>
-          <a class="kanban-card-link" href="https://postscript.io/careers" target="_blank" rel="noopener noreferrer">Careers page</a>
-        </div>
-        <div class="company-card">
-          <div class="company-card-name">Qualia</div>
-          <div class="company-card-meta">~400 employees &middot; Steady growth &middot; Austin hybrid</div>
-          <p class="company-card-why">Why: Real-estate closing platform with implementation services; Austin office.</p>
-          <a class="kanban-card-link" href="https://www.qualia.com/careers/" target="_blank" rel="noopener noreferrer">Careers page</a>
-        </div>
-        <div class="company-card">
-          <div class="company-card-name">Rev.com</div>
-          <div class="company-card-meta">~400 employees &middot; Growing on AI pivot &middot; Austin hybrid</div>
-          <p class="company-card-why">Why: Speech AI company expanding enterprise services; Austin HQ.</p>
-          <a class="kanban-card-link" href="https://www.rev.com/careers" target="_blank" rel="noopener noreferrer">Careers page</a>
-        </div>
-        <div class="company-card">
-          <div class="company-card-name">Self Financial</div>
-          <div class="company-card-meta">~300 employees &middot; Headcount +10% YoY &middot; Austin hybrid</div>
-          <p class="company-card-why">Why: Credit-building fintech with customer operations leadership; Austin HQ.</p>
-          <a class="kanban-card-link" href="https://www.self.inc/careers" target="_blank" rel="noopener noreferrer">Careers page</a>
-        </div>
-        <div class="company-card">
-          <div class="company-card-name">Shipwell</div>
-          <div class="company-card-meta">~200 employees &middot; Steady &middot; Austin hybrid</div>
-          <p class="company-card-why">Why: Freight TMS with implementation and CS orgs; Austin HQ.</p>
-          <a class="kanban-card-link" href="https://shipwell.com/careers/" target="_blank" rel="noopener noreferrer">Careers page</a>
-        </div>
-        <div class="company-card">
-          <div class="company-card-name">Vanta</div>
-          <div class="company-card-meta">~700 employees &middot; Headcount +30% YoY &middot; Remote (national)</div>
-          <p class="company-card-why">Why: Trust management leader rapidly scaling its post-sales org.</p>
-          <a class="kanban-card-link" href="https://www.vanta.com/careers" target="_blank" rel="noopener noreferrer">Careers page</a>
-        </div>
-        <div class="company-card">
-          <div class="company-card-name">Workrise</div>
-          <div class="company-card-meta">~600 employees &middot; Refocused, growing &middot; Austin hybrid</div>
-          <p class="company-card-why">Why: Energy workforce platform; Austin HQ.</p>
-          <a class="kanban-card-link" href="https://www.workrise.com/careers" target="_blank" rel="noopener noreferrer">Careers page</a>
-        </div>
-        <div class="company-card">
-          <div class="company-card-name">WP Engine</div>
-          <div class="company-card-meta">~1,100 employees &middot; Steady &middot; Austin hybrid</div>
-          <p class="company-card-why">Why: Managed WordPress host with a large customer experience org; Austin HQ.</p>
-          <a class="kanban-card-link" href="https://wpengine.careers/" target="_blank" rel="noopener noreferrer">Careers page</a>
-        </div>
-        <div class="company-card">
-          <div class="company-card-name">Zello</div>
-          <div class="company-card-meta">~100 employees &middot; Profitable, growing &middot; Austin hybrid</div>
-          <p class="company-card-why">Why: Push-to-talk leader with a lean customer team and leadership need; Austin HQ.</p>
-          <a class="kanban-card-link" href="https://zello.com/careers/" target="_blank" rel="noopener noreferrer">Careers page</a>
-        </div>
+        <button class="btn" type="submit">Start shortlist search →</button>
+        <p id="shortlist-status" class="form-status"></p>
+      </form>
+
+      <div class="board-toolbar">
+        <button id="refresh-companies" class="btn btn-secondary" type="button">Refresh list</button>
       </div>
+
+      <div id="companies-list" class="company-grid"></div>
     </div>
   </main>
 
@@ -249,167 +103,6 @@
     </div>
   </footer>
 
-  <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "ItemList",
-    "name": "AI Job Scout target companies",
-    "itemListElement": [
-      {
-        "@type": "ListItem",
-        "position": 1,
-        "item": { "@type": "Organization", "name": "ActiveProspect", "url": "https://activeprospect.com/careers/" }
-      },
-      {
-        "@type": "ListItem",
-        "position": 2,
-        "item": { "@type": "Organization", "name": "AffiniPay", "url": "https://affinipay.com/careers/" }
-      },
-      {
-        "@type": "ListItem",
-        "position": 3,
-        "item": { "@type": "Organization", "name": "AlertMedia", "url": "https://www.alertmedia.com/careers/" }
-      },
-      {
-        "@type": "ListItem",
-        "position": 4,
-        "item": { "@type": "Organization", "name": "BigCommerce", "url": "https://careers.bigcommerce.com/" }
-      },
-      {
-        "@type": "ListItem",
-        "position": 5,
-        "item": { "@type": "Organization", "name": "Billd", "url": "https://billd.com/careers/" }
-      },
-      {
-        "@type": "ListItem",
-        "position": 6,
-        "item": { "@type": "Organization", "name": "Bloomerang", "url": "https://bloomerang.co/careers/" }
-      },
-      {
-        "@type": "ListItem",
-        "position": 7,
-        "item": { "@type": "Organization", "name": "CrowdStreet", "url": "https://www.crowdstreet.com/careers" }
-      },
-      {
-        "@type": "ListItem",
-        "position": 8,
-        "item": { "@type": "Organization", "name": "Degreed", "url": "https://degreed.com/about/careers" }
-      },
-      {
-        "@type": "ListItem",
-        "position": 9,
-        "item": { "@type": "Organization", "name": "Dialpad", "url": "https://www.dialpad.com/careers" }
-      },
-      {
-        "@type": "ListItem",
-        "position": 10,
-        "item": { "@type": "Organization", "name": "findhelp", "url": "https://company.findhelp.com/careers/" }
-      },
-      {
-        "@type": "ListItem",
-        "position": 11,
-        "item": { "@type": "Organization", "name": "Gong", "url": "https://www.gong.io/careers/" }
-      },
-      {
-        "@type": "ListItem",
-        "position": 12,
-        "item": { "@type": "Organization", "name": "Guru", "url": "https://www.getguru.com/careers" }
-      },
-      {
-        "@type": "ListItem",
-        "position": 13,
-        "item": { "@type": "Organization", "name": "Iodine Software", "url": "https://iodinesoftware.com/careers/" }
-      },
-      {
-        "@type": "ListItem",
-        "position": 14,
-        "item": { "@type": "Organization", "name": "Jungle Scout", "url": "https://www.junglescout.com/careers/" }
-      },
-      {
-        "@type": "ListItem",
-        "position": 15,
-        "item": { "@type": "Organization", "name": "Kajabi", "url": "https://kajabi.com/careers" }
-      },
-      {
-        "@type": "ListItem",
-        "position": 16,
-        "item": { "@type": "Organization", "name": "Lattice", "url": "https://lattice.com/careers" }
-      },
-      {
-        "@type": "ListItem",
-        "position": 17,
-        "item": { "@type": "Organization", "name": "Living Security", "url": "https://www.livingsecurity.com/careers" }
-      },
-      {
-        "@type": "ListItem",
-        "position": 18,
-        "item": { "@type": "Organization", "name": "LogicMonitor", "url": "https://www.logicmonitor.com/careers" }
-      },
-      {
-        "@type": "ListItem",
-        "position": 19,
-        "item": { "@type": "Organization", "name": "Olo", "url": "https://www.olo.com/careers" }
-      },
-      {
-        "@type": "ListItem",
-        "position": 20,
-        "item": { "@type": "Organization", "name": "Ontic", "url": "https://ontic.co/careers/" }
-      },
-      {
-        "@type": "ListItem",
-        "position": 21,
-        "item": { "@type": "Organization", "name": "Osano", "url": "https://www.osano.com/company/careers" }
-      },
-      {
-        "@type": "ListItem",
-        "position": 22,
-        "item": { "@type": "Organization", "name": "Postscript", "url": "https://postscript.io/careers" }
-      },
-      {
-        "@type": "ListItem",
-        "position": 23,
-        "item": { "@type": "Organization", "name": "Qualia", "url": "https://www.qualia.com/careers/" }
-      },
-      {
-        "@type": "ListItem",
-        "position": 24,
-        "item": { "@type": "Organization", "name": "Rev.com", "url": "https://www.rev.com/careers" }
-      },
-      {
-        "@type": "ListItem",
-        "position": 25,
-        "item": { "@type": "Organization", "name": "Self Financial", "url": "https://www.self.inc/careers" }
-      },
-      {
-        "@type": "ListItem",
-        "position": 26,
-        "item": { "@type": "Organization", "name": "Shipwell", "url": "https://shipwell.com/careers/" }
-      },
-      {
-        "@type": "ListItem",
-        "position": 27,
-        "item": { "@type": "Organization", "name": "Vanta", "url": "https://www.vanta.com/careers" }
-      },
-      {
-        "@type": "ListItem",
-        "position": 28,
-        "item": { "@type": "Organization", "name": "Workrise", "url": "https://www.workrise.com/careers" }
-      },
-      {
-        "@type": "ListItem",
-        "position": 29,
-        "item": { "@type": "Organization", "name": "WP Engine", "url": "https://wpengine.careers/" }
-      },
-      {
-        "@type": "ListItem",
-        "position": 30,
-        "item": { "@type": "Organization", "name": "Zello", "url": "https://zello.com/careers/" }
-      }
-    ]
-  }
-  </script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="config.js"></script>
   <script src="companies.js"></script>
 </body>
 </html>

@@ -27,23 +27,49 @@
 
   <main>
     <div class="container container--wide">
-      <p class="page-intro">Signups from the Contact form, pulled live from Supabase.</p>
-
-      <div class="admin-table-wrap">
-        <table class="admin-table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Email</th>
-              <th>Message</th>
-              <th>Signup Date</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody id="admin-tbody"></tbody>
-        </table>
+      <div class="board-toolbar">
+        <button id="tab-leads" class="btn" type="button">Leads</button>
+        <button id="tab-checklist" class="btn btn-secondary" type="button">Checklist</button>
       </div>
-      <p id="admin-empty" class="simple-list-empty" hidden>No signups yet.</p>
+
+      <section id="leads-panel">
+        <p class="page-intro">Signups from the Contact form, pulled live from Supabase.</p>
+
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Message</th>
+                <th>Signup Date</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="admin-tbody"></tbody>
+          </table>
+        </div>
+        <p id="admin-empty" class="simple-list-empty" hidden>No signups yet.</p>
+      </section>
+
+      <section id="checklist-panel" hidden>
+        <p class="page-intro">Tracked status of every site feature and integration -- updated as things get wired up or found broken.</p>
+
+        <div id="checklist-table-wrap" class="admin-table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Category</th>
+                <th>Item</th>
+                <th>Status</th>
+                <th>Notes</th>
+              </tr>
+            </thead>
+            <tbody id="checklist-tbody"></tbody>
+          </table>
+        </div>
+        <p id="checklist-empty" class="simple-list-empty" hidden>No checklist items yet.</p>
+      </section>
     </div>
   </main>
 
@@ -135,6 +161,106 @@
     }
 
     loadLeads();
+
+    // Tabs
+    const tabLeads = document.getElementById('tab-leads');
+    const tabChecklist = document.getElementById('tab-checklist');
+    const leadsPanel = document.getElementById('leads-panel');
+    const checklistPanel = document.getElementById('checklist-panel');
+
+    tabLeads.addEventListener('click', () => {
+      leadsPanel.hidden = false;
+      checklistPanel.hidden = true;
+      tabLeads.className = 'btn';
+      tabChecklist.className = 'btn btn-secondary';
+    });
+
+    tabChecklist.addEventListener('click', () => {
+      leadsPanel.hidden = true;
+      checklistPanel.hidden = false;
+      tabLeads.className = 'btn btn-secondary';
+      tabChecklist.className = 'btn';
+      loadChecklist();
+    });
+
+    // Checklist tab
+    const STATUS_OPTIONS = ['todo', 'in_progress', 'done', 'blocked'];
+
+    async function loadChecklist() {
+      const tbody = document.getElementById('checklist-tbody');
+      const empty = document.getElementById('checklist-empty');
+      const tableWrap = document.getElementById('checklist-table-wrap');
+
+      const { data, error } = await adminClient
+        .from('site_checklist')
+        .select('*')
+        .order('category')
+        .order('item');
+
+      if (error) {
+        tableWrap.hidden = true;
+        empty.hidden = false;
+        empty.textContent = `Error loading checklist: ${error.message}`;
+        console.error(error);
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        tableWrap.hidden = true;
+        empty.hidden = false;
+        empty.textContent = 'No checklist items yet.';
+        return;
+      }
+
+      tableWrap.hidden = false;
+      empty.hidden = true;
+      tbody.innerHTML = '';
+
+      data.forEach((row) => {
+        const tr = document.createElement('tr');
+
+        const category = document.createElement('td');
+        category.textContent = row.category || '';
+        tr.appendChild(category);
+
+        const item = document.createElement('td');
+        item.textContent = row.item || '';
+        tr.appendChild(item);
+
+        const statusCell = document.createElement('td');
+        const select = document.createElement('select');
+        select.className = 'form-input';
+        STATUS_OPTIONS.forEach((opt) => {
+          const optionEl = document.createElement('option');
+          optionEl.value = opt;
+          optionEl.textContent = opt;
+          if (opt === row.status) optionEl.selected = true;
+          select.appendChild(optionEl);
+        });
+        select.addEventListener('change', async () => {
+          const { error: updateError } = await adminClient
+            .from('site_checklist')
+            .update({ status: select.value, updated_at: new Date().toISOString() })
+            .eq('id', row.id);
+          if (updateError) {
+            alert(`Could not update status: ${updateError.message}`);
+            console.error(updateError);
+            select.value = row.status;
+          } else {
+            row.status = select.value;
+          }
+        });
+        statusCell.appendChild(select);
+        tr.appendChild(statusCell);
+
+        const notes = document.createElement('td');
+        notes.className = 'admin-message';
+        notes.textContent = row.notes || '';
+        tr.appendChild(notes);
+
+        tbody.appendChild(tr);
+      });
+    }
   </script>
 </body>
 </html>

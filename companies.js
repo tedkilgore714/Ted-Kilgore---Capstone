@@ -1,4 +1,18 @@
-const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const API_BASE = 'https://ted-kilgore-capstone.onrender.com';
+
+// Careers-page links: the Agent's underlying research (CompanyRecommender)
+// doesn't collect a verified job-posting URL for each company -- only the
+// Matcher does that. For now we omit the link rather than show something
+// unverified. Flip CAREERS_LINK_MODE to 'google' to fall back to a Google
+// search for "{company} careers" instead of omitting it.
+const CAREERS_LINK_MODE = 'omit'; // 'omit' | 'google'
+
+function getCareersLink(company) {
+  if (CAREERS_LINK_MODE === 'google') {
+    return `https://www.google.com/search?q=${encodeURIComponent(company.company_name + ' careers')}`;
+  }
+  return null;
+}
 
 function renderCompany(company) {
   const card = document.createElement('div');
@@ -10,9 +24,9 @@ function renderCompany(company) {
   card.appendChild(name);
 
   const metaParts = [];
-  if (company.employees) metaParts.push(`~${company.employees.toLocaleString()} employees`);
-  if (company.growth) metaParts.push(company.growth);
-  if (company.location) metaParts.push(company.location);
+  if (company.size_estimate) metaParts.push(company.size_estimate);
+  if (company.growth_note) metaParts.push(company.growth_note);
+  if (company.location_match) metaParts.push(company.location_match);
 
   if (metaParts.length) {
     const meta = document.createElement('div');
@@ -21,17 +35,18 @@ function renderCompany(company) {
     card.appendChild(meta);
   }
 
-  if (company.why) {
+  if (company.fit_rationale) {
     const why = document.createElement('p');
     why.className = 'company-card-why';
-    why.textContent = `Why: ${company.why}`;
+    why.textContent = `Why: ${company.fit_rationale}`;
     card.appendChild(why);
   }
 
-  if (company.url) {
+  const careersLink = getCareersLink(company);
+  if (careersLink) {
     const link = document.createElement('a');
     link.className = 'kanban-card-link';
-    link.href = company.url;
+    link.href = careersLink;
     link.target = '_blank';
     link.rel = 'noopener noreferrer';
     link.textContent = 'Careers page';
@@ -41,44 +56,88 @@ function renderCompany(company) {
   return card;
 }
 
+function dedupeByCompanyName(candidates) {
+  const seen = new Map();
+  for (const c of candidates) {
+    const key = (c.company_name || '').trim().toLowerCase();
+    if (!key) continue;
+    const existing = seen.get(key);
+    if (!existing || (c.rank || Infinity) < (existing.rank || Infinity)) {
+      seen.set(key, c);
+    }
+  }
+  return Array.from(seen.values()).sort((a, b) => (a.rank || Infinity) - (b.rank || Infinity));
+}
+
 async function loadCompanies() {
   const list = document.getElementById('companies-list');
+  list.innerHTML = '<p class="kanban-empty">Loading...</p>';
 
-  const { data, error } = await client
-    .from('companies')
-    .select('*')
-    .order('company_name', { ascending: true });
-
-  list.innerHTML = '';
-
-  if (error) {
-    console.error('Failed to load companies', error);
+  let data;
+  try {
+    const response = await fetch(`${API_BASE}/candidates`);
+    if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+    data = await response.json();
+  } catch (error) {
+    console.error('Failed to load candidates', error);
+    list.innerHTML = '';
     const msg = document.createElement('p');
     msg.className = 'kanban-empty';
-    msg.textContent =
-      'No company list yet — your 30-company shortlist will appear here once it has been generated.';
+    msg.textContent = 'Could not load companies right now — try refreshing in a moment.';
     list.appendChild(msg);
     return;
   }
 
-  if (!data || data.length === 0) {
+  list.innerHTML = '';
+
+  const companies = dedupeByCompanyName(data || []);
+
+  if (companies.length === 0) {
     const empty = document.createElement('p');
     empty.className = 'kanban-empty';
     empty.textContent =
-      'No companies yet — your 30-company shortlist will appear here once it has been generated.';
+      'No companies yet — run a shortlist search above and your companies will appear here once it finishes (about 5-10 minutes).';
     list.appendChild(empty);
     return;
   }
 
-  data.forEach((company) => list.appendChild(renderCompany(company)));
+  companies.forEach((company) => list.appendChild(renderCompany(company)));
 }
 
-// Realtime sync
-client
-  .channel('companies-realtime')
-  .on('postgres_changes', { event: '*', schema: 'public', table: 'companies' }, () => {
-    loadCompanies();
-  })
-  .subscribe();
+// Trigger form -- kicks off the Shortlist Agent (fire-and-forget) directly
+// from the real site instead of the separate Render demo page.
+const shortlistForm = document.getElementById('shortlist-form');
+const shortlistStatus = document.getElementById('shortlist-status');
+
+shortlistForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  shortlistStatus.textContent = 'Starting...';
+
+  const payload = {
+    resume: document.getElementById('shortlist-resume').value,
+    role: document.getElementById('shortlist-role').value,
+    location: document.getElementById('shortlist-location').value,
+    company_size: document.getElementById('shortlist-size').value,
+    include_remote: document.getElementById('shortlist-remote').checked,
+  };
+
+  try {
+    const response = await fetch(`${API_BASE}/shortlist`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+    const result = await response.json();
+    shortlistStatus.textContent =
+      result.message ||
+      'Shortlist search started — this takes about 5-10 minutes. Check your email when it\'s done, or refresh this page.';
+  } catch (error) {
+    console.error('Failed to start shortlist search', error);
+    shortlistStatus.textContent = `Error: ${error.message}`;
+  }
+});
+
+document.getElementById('refresh-companies').addEventListener('click', loadCompanies);
 
 loadCompanies();
