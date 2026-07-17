@@ -125,6 +125,33 @@ def _find_ats_jobs_url(exa, company_name: str) -> str | None:
     return None
 
 
+def _get_cached_jobs_url(supabase, company_name: str) -> str | None:
+    """jobs_url is an attribute of the company, not of who searched for it
+    or why -- reuse any URL already resolved for this same company name by
+    any prior search (any user, any role/location) instead of re-running
+    paid searches for a company we've already figured out. Checked first,
+    before any of the paid fallbacks below. Silently returns None (never
+    raises) since this is a cost optimization, not a required dependency --
+    a lookup failure should degrade to "research it fresh," not break the
+    call."""
+    if supabase is None:
+        return None
+    try:
+        response = (
+            supabase.table("candidates")
+            .select("jobs_url")
+            .ilike("company_name", company_name.strip())
+            .not_.is_("jobs_url", "null")
+            .limit(1)
+            .execute()
+        )
+        if response.data:
+            return response.data[0]["jobs_url"]
+    except Exception:
+        pass
+    return None
+
+
 def _parse_companies_json(text: str) -> list:
     """Extract and parse the JSON array from Claude's response text.
 
@@ -230,9 +257,18 @@ def recommend_companies(
         )
     companies = _parse_companies_json(text)
 
+    try:
+        from shortlist_agent import get_supabase_client
+        supabase = get_supabase_client()
+    except Exception:
+        supabase = None
+
     for company in companies:
         if not company.get("jobs_url"):
-            company["jobs_url"] = _find_ats_jobs_url(exa, company["company_name"])
+            company["jobs_url"] = (
+                _get_cached_jobs_url(supabase, company["company_name"])
+                or _find_ats_jobs_url(exa, company["company_name"])
+            )
 
     return companies
 
