@@ -43,6 +43,18 @@
         </form>
       </section>
 
+      <section id="reset-panel" hidden>
+        <p class="page-intro">Set a new password for your admin login.</p>
+        <form id="reset-form" class="opening-form">
+          <div class="form-field">
+            <label class="form-label" for="reset-password">New password</label>
+            <input class="form-input" id="reset-password" type="password" required minlength="6" />
+          </div>
+          <button class="btn" type="submit">Set password</button>
+          <p id="reset-status" class="form-status"></p>
+        </form>
+      </section>
+
       <div id="admin-content" hidden>
       <div class="board-toolbar">
         <button id="tab-leads" class="btn" type="button">Leads</button>
@@ -118,25 +130,68 @@
     // longer read either table, so there's nothing sensitive to protect
     // client-side -- this is purely UX, not the actual security boundary.
     const loginPanel = document.getElementById('login-panel');
+    const resetPanel = document.getElementById('reset-panel');
     const adminContent = document.getElementById('admin-content');
     const loginForm = document.getElementById('login-form');
     const loginStatus = document.getElementById('login-status');
+    const resetForm = document.getElementById('reset-form');
+    const resetStatus = document.getElementById('reset-status');
 
     function showAdmin() {
       loginPanel.hidden = true;
+      resetPanel.hidden = true;
       adminContent.hidden = false;
       loadLeads();
     }
 
     function showLogin() {
       loginPanel.hidden = false;
+      resetPanel.hidden = true;
       adminContent.hidden = true;
     }
 
-    adminClient.auth.getSession().then(({ data: { session } }) => {
-      if (session) showAdmin();
-      else showLogin();
+    function showReset() {
+      loginPanel.hidden = true;
+      resetPanel.hidden = false;
+      adminContent.hidden = true;
+    }
+
+    // Clicking a Supabase password-reset email link lands back here with a
+    // recovery token in the URL hash. Parsed explicitly here (rather than
+    // relying solely on the client's built-in detectSessionInUrl) so this
+    // works reliably regardless of load timing -- establishes the session
+    // from the token directly, then shows "set new password" instead of
+    // the login form.
+    let handlingRecovery = false;
+    const hashParams = new URLSearchParams(window.location.hash.slice(1));
+    if (hashParams.get('type') === 'recovery' && hashParams.get('access_token')) {
+      handlingRecovery = true;
+      adminClient.auth
+        .setSession({
+          access_token: hashParams.get('access_token'),
+          refresh_token: hashParams.get('refresh_token'),
+        })
+        .then(({ error }) => {
+          history.replaceState(null, '', window.location.pathname);
+          if (error) {
+            showLogin();
+            loginStatus.textContent = `Error: ${error.message}`;
+          } else {
+            showReset();
+          }
+        });
+    }
+
+    adminClient.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') showReset();
     });
+
+    if (!handlingRecovery) {
+      adminClient.auth.getSession().then(({ data: { session } }) => {
+        if (session) showAdmin();
+        else showLogin();
+      });
+    }
 
     loginForm.addEventListener('submit', async (event) => {
       event.preventDefault();
@@ -151,6 +206,21 @@
       }
       loginStatus.textContent = '';
       loginForm.reset();
+      showAdmin();
+    });
+
+    resetForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      resetStatus.textContent = 'Setting password...';
+      const { error } = await adminClient.auth.updateUser({
+        password: document.getElementById('reset-password').value,
+      });
+      if (error) {
+        resetStatus.textContent = `Error: ${error.message}`;
+        return;
+      }
+      resetStatus.textContent = '';
+      resetForm.reset();
       showAdmin();
     });
 
