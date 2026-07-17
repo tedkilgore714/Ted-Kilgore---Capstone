@@ -25,6 +25,24 @@ LOCAL_RADIUS_MILES = 25
 TRAILING_COMMA_PATTERN = re.compile(r",(\s*[\]}])")
 URL_PATTERN = re.compile(r"^https?://\S+$")
 
+# Major ATS platforms most companies' real jobs boards live on. When
+# Claude's own search misses a company's jobs_url, one direct, deterministic
+# Exa search checked against this list resolves most of the remaining
+# misses -- without spending another (expensive, non-deterministic) Claude
+# turn on what's essentially a domain-matching problem.
+ATS_DOMAINS = [
+    "greenhouse.io",
+    "lever.co",
+    "myworkday.com",
+    "ashbyhq.com",
+    "smartrecruiters.com",
+    "icims.com",
+    "jobvite.com",
+    "bamboohr.com",
+    "workable.com",
+    "breezy.hr",
+]
+
 SYSTEM_PROMPT = (
     "You are a job hunt strategist. Given a resume, target role, location, a "
     "preferred company size range, and whether to include remote-friendly "
@@ -85,6 +103,26 @@ SYSTEM_PROMPT = (
 def _format_results(results):
     lines = [f"- {r.title} ({r.url}): {(r.highlights or [''])[0]}" for r in results]
     return "\n".join(lines) or "No results found."
+
+
+def _find_ats_jobs_url(exa, company_name: str) -> str | None:
+    """Deterministic fallback for a company Claude's own search missed.
+
+    One direct Exa search for "{company} jobs", then check the top results
+    for a domain match against a known ATS platform -- no LLM interpretation
+    needed, since we're only matching a domain, not judging relevance.
+    Returns None if nothing in the top results matches a known ATS domain
+    (company may simply not use one, or may not have surfaced yet).
+    """
+    try:
+        result = exa.search(f"{company_name} jobs", num_results=5)
+    except Exception:
+        return None
+
+    for r in result.results:
+        if any(domain in r.url for domain in ATS_DOMAINS):
+            return r.url
+    return None
 
 
 def _parse_companies_json(text: str) -> list:
@@ -190,7 +228,13 @@ def recommend_companies(
             f"{final_message.stop_reason}). This usually means max_tokens "
             f"was hit mid-thought before any output was written."
         )
-    return _parse_companies_json(text)
+    companies = _parse_companies_json(text)
+
+    for company in companies:
+        if not company.get("jobs_url"):
+            company["jobs_url"] = _find_ats_jobs_url(exa, company["company_name"])
+
+    return companies
 
 
 if __name__ == "__main__":
