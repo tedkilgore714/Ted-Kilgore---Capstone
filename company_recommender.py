@@ -18,7 +18,10 @@ COMPANY_SIZE_OPTIONS = [
     "Mid-size (201-1,000 employees)",
     "Large (1,001-5,000 employees)",
     "Enterprise (5,000+ employees)",
+    "Any Size is Great!",
 ]
+
+ANY_COMPANY_SIZE = "Any Size is Great!"
 
 LOCAL_RADIUS_MILES = 25
 
@@ -78,7 +81,11 @@ SYSTEM_PROMPT = (
     f"fit). Only go further outside that 50% band if you genuinely cannot "
     f"find {TARGET_COMPANY_COUNT} companies within or near the preferred "
     "range — and if you do, say so implicitly by making sure most of the "
-    "list stays within the tightened band.\n"
+    f"list stays within the tightened band. If the preferred company size "
+    f"is \"{ANY_COMPANY_SIZE}\", there is no size preference at all — "
+    "ignore this range/50% guidance entirely and pick the best-fitting "
+    "companies regardless of size, from tiny startups to huge "
+    "enterprises.\n"
     "- Growth: prefer companies whose headcount appears to be increasing "
     "year-over-year for the past few years, based on best-effort public "
     "signals (LinkedIn headcount trends, news, funding announcements, etc).\n"
