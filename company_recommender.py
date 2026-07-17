@@ -46,65 +46,69 @@ ATS_DOMAINS = [
     "breezy.hr",
 ]
 
-SYSTEM_PROMPT = (
-    "You are a job hunt strategist. Given a resume, target role, location, a "
-    "preferred company size range, and whether to include remote-friendly "
-    f"companies, use web_search to recommend EXACTLY {TARGET_COMPANY_COUNT} "
-    "companies that are a strong fit for the candidate to target.\n\n"
-    "This is NOT about finding a specific open job posting — do not try to "
-    "find or include a link to a specific req/listing. Do, for each company, "
-    "use one web_search to find its actual jobs/careers listing page (the "
-    "page that lists all of its open roles, e.g. a company's own /careers "
-    "page or its Greenhouse/Lever/Workday/Ashby board) and return that as "
-    "jobs_url — use the real URL from search results, never a guessed or "
-    "constructed one, and use null if you can't confidently find it. Beyond "
-    "that one search per company, use web_search sparingly, only to "
-    "spot-check company-level signals (headcount trend, size, leadership "
-    "stability) — you do not need to research every single candidate "
-    f"exhaustively. Use up to {MAX_SEARCHES} searches total across all "
-    f"{TARGET_COMPANY_COUNT} companies.\n\n"
-    "Targeting criteria:\n"
-    "- Role: match the target role, or a close director/leadership-level "
-    "equivalent in the same function.\n"
-    f"- Location: \"local\" means the company has an office within "
-    f"{LOCAL_RADIUS_MILES} miles of the given location. If remote inclusion "
-    "is OFF, only include companies with a local office. If remote "
-    "inclusion is ON, include companies with a local office AND any company "
-    "(regardless of where its office is) that offers remote work for this "
-    "type of role.\n"
-    "- Company size: a preference for the given size range, not a strict "
-    "hard filter — but do not stretch it loosely either. Only include a "
-    "company outside the range if its size is within roughly 50% of the "
-    "range's nearest boundary (e.g. if the range tops out at 1,000 "
-    "employees, a company with up to ~1,500 is acceptable; a company with "
-    "3,000+ should NOT be included just because it's otherwise a strong "
-    f"fit). Only go further outside that 50% band if you genuinely cannot "
-    f"find {TARGET_COMPANY_COUNT} companies within or near the preferred "
-    "range — and if you do, say so implicitly by making sure most of the "
-    f"list stays within the tightened band. If the preferred company size "
-    f"is \"{ANY_COMPANY_SIZE}\", there is no size preference at all — "
-    "ignore this range/50% guidance entirely and pick the best-fitting "
-    "companies regardless of size, from tiny startups to huge "
-    "enterprises.\n"
-    "- Growth: prefer companies whose headcount appears to be increasing "
-    "year-over-year for the past few years, based on best-effort public "
-    "signals (LinkedIn headcount trends, news, funding announcements, etc).\n"
-    "- Hard exclude: do not include any company where the CEO has changed "
-    "more than twice in the past 10 years.\n\n"
-    "For each company, return: company_name, size_estimate, location_match "
-    "(how this company satisfies the location requirement, e.g. \"Local "
-    f"office within {LOCAL_RADIUS_MILES} miles of Austin, TX\" or "
-    "\"Remote-friendly, HQ in Denver, CO\"), growth_note (a brief "
-    "best-effort note on headcount trend and any leadership-turnover signal "
-    "you found — this is best-effort research, not guaranteed-accurate "
-    "structured data, so do not present it as verified; use null if you "
-    "found nothing to go on), jobs_url (the company's actual jobs/careers "
-    "listing page URL, as described above — a bare URL string or null, "
-    "never prose), fit_rationale (2 sentences on why this company fits the "
-    f"resume and role). Return as a JSON array of exactly "
-    f"{TARGET_COMPANY_COUNT} companies and nothing else — no prose, no "
-    "clarifying questions."
-)
+def _build_system_prompt(count: int) -> str:
+    """count is normally TARGET_COMPANY_COUNT (a full shortlist), but a
+    reject-and-replace call asks for just 1 -- same targeting criteria and
+    research process either way, just a different yield."""
+    return (
+        "You are a job hunt strategist. Given a resume, target role, location, a "
+        "preferred company size range, and whether to include remote-friendly "
+        f"companies, use web_search to recommend EXACTLY {count} "
+        "companies that are a strong fit for the candidate to target.\n\n"
+        "This is NOT about finding a specific open job posting — do not try to "
+        "find or include a link to a specific req/listing. Do, for each company, "
+        "use one web_search to find its actual jobs/careers listing page (the "
+        "page that lists all of its open roles, e.g. a company's own /careers "
+        "page or its Greenhouse/Lever/Workday/Ashby board) and return that as "
+        "jobs_url — use the real URL from search results, never a guessed or "
+        "constructed one, and use null if you can't confidently find it. Beyond "
+        "that one search per company, use web_search sparingly, only to "
+        "spot-check company-level signals (headcount trend, size, leadership "
+        "stability) — you do not need to research every single candidate "
+        f"exhaustively. Use up to {MAX_SEARCHES} searches total across all "
+        f"{count} companies.\n\n"
+        "Targeting criteria:\n"
+        "- Role: match the target role, or a close director/leadership-level "
+        "equivalent in the same function.\n"
+        f"- Location: \"local\" means the company has an office within "
+        f"{LOCAL_RADIUS_MILES} miles of the given location. If remote inclusion "
+        "is OFF, only include companies with a local office. If remote "
+        "inclusion is ON, include companies with a local office AND any company "
+        "(regardless of where its office is) that offers remote work for this "
+        "type of role.\n"
+        "- Company size: a preference for the given size range, not a strict "
+        "hard filter — but do not stretch it loosely either. Only include a "
+        "company outside the range if its size is within roughly 50% of the "
+        "range's nearest boundary (e.g. if the range tops out at 1,000 "
+        "employees, a company with up to ~1,500 is acceptable; a company with "
+        "3,000+ should NOT be included just because it's otherwise a strong "
+        f"fit). Only go further outside that 50% band if you genuinely cannot "
+        f"find {count} companies within or near the preferred "
+        "range — and if you do, say so implicitly by making sure most of the "
+        f"list stays within the tightened band. If the preferred company size "
+        f"is \"{ANY_COMPANY_SIZE}\", there is no size preference at all — "
+        "ignore this range/50% guidance entirely and pick the best-fitting "
+        "companies regardless of size, from tiny startups to huge "
+        "enterprises.\n"
+        "- Growth: prefer companies whose headcount appears to be increasing "
+        "year-over-year for the past few years, based on best-effort public "
+        "signals (LinkedIn headcount trends, news, funding announcements, etc).\n"
+        "- Hard exclude: do not include any company where the CEO has changed "
+        "more than twice in the past 10 years.\n\n"
+        "For each company, return: company_name, size_estimate, location_match "
+        "(how this company satisfies the location requirement, e.g. \"Local "
+        f"office within {LOCAL_RADIUS_MILES} miles of Austin, TX\" or "
+        "\"Remote-friendly, HQ in Denver, CO\"), growth_note (a brief "
+        "best-effort note on headcount trend and any leadership-turnover signal "
+        "you found — this is best-effort research, not guaranteed-accurate "
+        "structured data, so do not present it as verified; use null if you "
+        "found nothing to go on), jobs_url (the company's actual jobs/careers "
+        "listing page URL, as described above — a bare URL string or null, "
+        "never prose), fit_rationale (2 sentences on why this company fits the "
+        f"resume and role). Return as a JSON array of exactly "
+        f"{count} companies and nothing else — no prose, no "
+        "clarifying questions."
+    )
 
 
 def _format_results(results):
@@ -190,11 +194,13 @@ def recommend_companies(
     include_remote: bool,
     angle: str = None,
     already_seen: list = None,
+    count: int = TARGET_COMPANY_COUNT,
 ) -> list:
-    """Ask Claude to recommend TARGET_COMPANY_COUNT companies that fit the
-    resume/role/location/preferences, using best-effort company-level
-    research (headcount, size, leadership stability) — not a live-verified
-    job posting per company like company_matcher.match_companies().
+    """Ask Claude to recommend `count` companies (TARGET_COMPANY_COUNT by
+    default -- a full shortlist) that fit the resume/role/location/
+    preferences, using best-effort company-level research (headcount, size,
+    leadership stability) — not a live-verified job posting per company
+    like company_matcher.match_companies().
 
     include_remote controls whether remote-friendly companies (regardless
     of office location) are included alongside local ones (within
@@ -206,7 +212,10 @@ def recommend_companies(
 
     already_seen is an optional list of company names to avoid
     re-recommending (e.g. companies a caller has already collected from a
-    prior call).
+    prior call, or rejected).
+
+    count lets a caller ask for fewer than a full shortlist -- e.g. a
+    reject-and-replace flow wants exactly 1 replacement, not a fresh 10.
 
     Returns the parsed JSON array (list of dicts) from Claude's response.
     """
@@ -246,7 +255,7 @@ def recommend_companies(
     runner = claude.beta.messages.tool_runner(
         model=MODEL,
         max_tokens=MAX_TOKENS,
-        system=SYSTEM_PROMPT,
+        system=_build_system_prompt(count),
         tools=[web_search],
         messages=[{"role": "user", "content": user_message}],
     )

@@ -344,9 +344,44 @@ h1.page-title {
   color: var(--muted);
 }
 
+.company-card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.65rem;
+}
+
 .company-card .kanban-card-link {
   display: inline-block;
-  margin-top: 0.65rem;
+}
+
+.company-card-reject {
+  flex-shrink: 0;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #b23b3b;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.company-card-reject:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.company-card-reject:disabled {
+  color: var(--muted);
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.reject-limit-note {
+  font-size: 0.82rem;
+  color: var(--muted);
+  margin: -1.5rem 0 1.5rem;
 }
 
 .prose-card {
@@ -697,6 +732,97 @@ article p {
     opacity: 1;
     transform: none;
     transition: none;
+  }
+}
+
+#hiw-openings-body {
+  position: relative;
+}
+
+.mockup-kanban {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.6rem;
+}
+
+@media (min-width: 1100px) {
+  .mockup-kanban {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .mockup-kanban {
+    grid-template-columns: 1fr;
+  }
+}
+
+.mockup-kanban-col {
+  background: rgba(234, 241, 251, 0.5);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.6rem;
+  min-height: 150px;
+}
+
+.mockup-kanban-col-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  min-height: 70px;
+}
+
+.mockup-kanban-card {
+  position: relative;
+  z-index: 1;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem 0.6rem;
+  box-shadow: 0 2px 4px rgba(15, 23, 42, 0.06);
+}
+
+.mockup-kanban-card-title {
+  font-weight: 600;
+  font-size: 0.78rem;
+}
+
+.mockup-kanban-card-company {
+  margin-top: 0.1rem;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.mockup-kanban-card.is-dragging {
+  z-index: 5;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.25);
+}
+
+.mockup-drag-cursor {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid #fff;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.3);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  z-index: 10;
+  transition: opacity 0.2s ease;
+}
+
+.mockup-drag-cursor.is-visible {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mockup-drag-cursor {
+    display: none;
   }
 }
 

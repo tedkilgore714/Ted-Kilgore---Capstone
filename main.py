@@ -10,7 +10,7 @@ from company_recommender import (
     TARGET_COMPANY_COUNT,
     recommend_companies,
 )
-from shortlist_agent import build_shortlist, get_supabase_client
+from shortlist_agent import build_replacement, build_shortlist, get_supabase_client, reject_candidate
 
 app = FastAPI(title="AI Job Scout — Company Matcher")
 
@@ -111,6 +111,24 @@ def candidates(email: str = None, role: str = None, location: str = None, compan
         query = query.eq("include_remote", include_remote)
     response = query.order("role").order("location").order("rank").execute()
     return response.data or []
+
+
+class RejectRequest(BaseModel):
+    candidate_id: str
+
+
+@app.post("/reject")
+def reject(request: RejectRequest, background_tasks: BackgroundTasks):
+    try:
+        row = reject_candidate(request.candidate_id)
+    except ValueError as e:
+        status_code = 404 if str(e) == "Company not found." else 403
+        raise HTTPException(status_code=status_code, detail=str(e))
+    background_tasks.add_task(build_replacement, row)
+    return {
+        "status": "rejected",
+        "message": "Rejected. Finding a replacement — check back in a minute or two.",
+    }
 
 
 DEMO_HTML = """<!doctype html>

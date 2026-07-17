@@ -6,6 +6,12 @@ const API_BASE = 'https://ted-kilgore-capstone.onrender.com';
 // backend now caps what it ranks/emails too.
 const DISPLAY_LIMIT = 10;
 
+// Must match REJECT_CAP in shortlist_agent.py -- free-tier limit on how
+// many companies can be rejected per search scope. Enforced server-side;
+// this is only used here to grey out the UI once the limit is reached
+// instead of letting a click round-trip to a 403.
+const REJECT_CAP = 5;
+
 // Jobs-board links: CompanyRecommender now researches each company's
 // actual jobs/careers listing page (jobs_url) via web_search -- best-effort,
 // not live-verified the way company_matcher.py's hiring_signal is. Falls
@@ -38,7 +44,7 @@ function addCompanyField(card, label, value) {
   card.appendChild(field);
 }
 
-function renderCompany(company) {
+function renderCompany(company, rejectDisabled, onReject) {
   const card = document.createElement('div');
   card.className = 'company-card';
 
@@ -52,6 +58,9 @@ function renderCompany(company) {
   addCompanyField(card, 'Growth / Leadership Note', company.growth_note);
   addCompanyField(card, 'Fit Rationale', company.fit_rationale);
 
+  const actions = document.createElement('div');
+  actions.className = 'company-card-actions';
+
   const careersLink = getCareersLink(company);
   if (careersLink) {
     const link = document.createElement('a');
@@ -60,8 +69,21 @@ function renderCompany(company) {
     link.target = '_blank';
     link.rel = 'noopener noreferrer';
     link.textContent = company.jobs_url ? 'Jobs board' : 'Search jobs';
-    card.appendChild(link);
+    actions.appendChild(link);
   }
+
+  const rejectButton = document.createElement('button');
+  rejectButton.type = 'button';
+  rejectButton.className = 'company-card-reject';
+  rejectButton.textContent = 'Not a fit';
+  rejectButton.disabled = rejectDisabled;
+  rejectButton.title = rejectDisabled
+    ? `Free plan limit reached — up to ${REJECT_CAP} rejections per search`
+    : 'Reject this company and search for a replacement';
+  rejectButton.addEventListener('click', () => onReject(company, card, rejectButton));
+  actions.appendChild(rejectButton);
+
+  card.appendChild(actions);
 
   return card;
 }
@@ -115,11 +137,41 @@ function describeScope(scope) {
   return text;
 }
 
+async function rejectCompany(candidateId, company, cardEl, button) {
+  if (!confirm(`Reject ${company.company_name}? This uses one of your ${REJECT_CAP} rejections for this search, and a replacement search will run in the background.`)) {
+    return;
+  }
+  button.disabled = true;
+  button.textContent = 'Rejecting...';
+
+  try {
+    const response = await fetch(`${API_BASE}/reject`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ candidate_id: candidateId }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(result.detail || `${response.status} ${response.statusText}`);
+    }
+    cardEl.remove();
+    const note = document.getElementById('reject-limit-note');
+    if (note) note.textContent = result.message || 'Rejected — finding a replacement.';
+  } catch (error) {
+    console.error('Failed to reject company', error);
+    alert(`Could not reject: ${error.message}`);
+    button.disabled = false;
+    button.textContent = 'Not a fit';
+  }
+}
+
 async function loadCompanies() {
   const list = document.getElementById('companies-list');
   const scopeLabel = document.getElementById('companies-scope-label');
+  const limitNote = document.getElementById('reject-limit-note');
   list.innerHTML = '<p class="kanban-empty">Loading...</p>';
   scopeLabel.textContent = '';
+  limitNote.textContent = '';
 
   let data;
   try {
@@ -139,9 +191,10 @@ async function loadCompanies() {
   list.innerHTML = '';
 
   const { scope, rows } = filterToMostRecentSearch(data || []);
-  const companies = dedupeByCompanyName(rows);
+  const rejectedCount = rows.filter((c) => c.rejected).length;
+  const companies = dedupeByCompanyName(rows.filter((c) => !c.rejected));
 
-  if (companies.length === 0) {
+  if (companies.length === 0 && rejectedCount === 0) {
     const empty = document.createElement('p');
     empty.className = 'kanban-empty';
     empty.textContent =
@@ -151,7 +204,18 @@ async function loadCompanies() {
   }
 
   scopeLabel.textContent = describeScope(scope);
-  companies.forEach((company) => list.appendChild(renderCompany(company)));
+
+  const atCap = rejectedCount >= REJECT_CAP;
+  limitNote.textContent = atCap
+    ? `Free plan limit reached — you've rejected ${REJECT_CAP} of ${REJECT_CAP} companies for this search.`
+    : `${rejectedCount} of ${REJECT_CAP} rejections used for this search.`;
+
+  companies.forEach((company) => {
+    const card = renderCompany(company, atCap, (c, cardEl, button) =>
+      rejectCompany(company.id, c, cardEl, button)
+    );
+    list.appendChild(card);
+  });
 }
 
 // Trigger form -- kicks off the Shortlist Agent (fire-and-forget) directly
@@ -198,3 +262,45 @@ shortlistForm.addEventListener('submit', async (event) => {
 document.getElementById('refresh-companies').addEventListener('click', loadCompanies);
 
 loadCompanies();
+
+// Prefill the location field from the browser's geolocation, so someone
+// searching from where they already live doesn't have to type it --
+// still fully editable for anyone planning to relocate or search
+// elsewhere. Silently does nothing on denial/error/unsupported browsers;
+// this is a convenience, not a requirement, and the field stays usable
+// either way.
+function prefillLocation() {
+  const input = document.getElementById('shortlist-location');
+  if (!input || input.value || !navigator.geolocation) return;
+
+  navigator.geolocation.getCurrentPosition(
+    async (position) => {
+      try {
+        const { latitude, longitude } = position.coords;
+        const response = await fetch(
+          `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`
+        );
+        if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+        const place = await response.json();
+
+        if (input.value) return; // user started typing while this was in flight
+
+        const city = place.city || place.locality;
+        const stateCode = (place.principalSubdivisionCode || '').split('-').pop();
+        const state = stateCode || place.principalSubdivision;
+
+        if (city && state) {
+          input.value = `${city}, ${state}`;
+        } else if (city) {
+          input.value = city;
+        }
+      } catch (error) {
+        console.error('Reverse geocoding failed', error);
+      }
+    },
+    () => {}, // permission denied or unavailable -- leave the field as-is
+    { timeout: 8000 }
+  );
+}
+
+prefillLocation();

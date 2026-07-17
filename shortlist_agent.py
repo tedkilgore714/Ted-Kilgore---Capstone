@@ -157,8 +157,14 @@ def _save_new_candidates(
     location: str,
     company_size: str,
     include_remote: bool,
+    resume: str = None,
 ) -> list:
-    """Insert companies not already in seen_keys. Returns the newly inserted rows (with their DB ids)."""
+    """Insert companies not already in seen_keys. Returns the newly inserted rows (with their DB ids).
+
+    resume is stored on each row (denormalized, same value across a
+    scope's rows) so a later reject-and-replace call can run a new search
+    without the client re-sending their whole resume.
+    """
     rows_to_insert = []
     for c in companies:
         name = c.get("company_name")
@@ -181,6 +187,7 @@ def _save_new_candidates(
                 "location": location,
                 "company_size": company_size,
                 "include_remote": include_remote,
+                "resume": resume,
             }
         )
     if not rows_to_insert:
@@ -208,7 +215,7 @@ def _pick_next_angle(claude, messages: list) -> tuple:
     return tool_use.input.get("angle", ""), tool_use.id, response.content
 
 
-def _recommend_with_retry(resume, role, location, company_size, include_remote, angle, already_seen, max_attempts=3):
+def _recommend_with_retry(resume, role, location, company_size, include_remote, angle, already_seen, count=TARGET_COUNT, max_attempts=3):
     """CompanyRecommender occasionally hits transient Anthropic errors (e.g.
     529 Overloaded) — retry a couple times with a short backoff before
     giving up on this angle, instead of treating one hiccup as 0 results."""
@@ -216,7 +223,7 @@ def _recommend_with_retry(resume, role, location, company_size, include_remote, 
         try:
             return recommend_companies(
                 resume, role, location, company_size, include_remote,
-                angle=angle, already_seen=already_seen,
+                angle=angle, already_seen=already_seen, count=count,
             )
         except Exception as e:
             if attempt == max_attempts:
@@ -373,7 +380,7 @@ def build_shortlist(
             print(f"[iteration {iteration}] error: CompanyRecommender call failed after retries ({e})", flush=True)
             companies = []
 
-        new_rows = _save_new_candidates(supabase, companies, seen_keys, recipient_email, role, location, company_size, include_remote)
+        new_rows = _save_new_candidates(supabase, companies, seen_keys, recipient_email, role, location, company_size, include_remote, resume)
         all_saved.extend(new_rows)
         print(
             f"[iteration {iteration}] act: CompanyRecommender returned {len(companies)} "
@@ -427,6 +434,101 @@ def build_shortlist(
         print(f"\ndone: {len(ranked_rows)} unique candidates saved, but digest email failed ({e})", flush=True)
 
     return ranked_rows
+
+
+REJECT_CAP = 5
+
+
+def get_rejected_count(supabase, email: str, role: str, location: str, company_size: str, include_remote: bool) -> int:
+    response = (
+        supabase.table("candidates")
+        .select("id", count="exact")
+        .eq("email", email)
+        .eq("role", role)
+        .eq("location", location)
+        .eq("company_size", company_size)
+        .eq("include_remote", include_remote)
+        .eq("rejected", True)
+        .execute()
+    )
+    return response.count or 0
+
+
+def reject_candidate(candidate_id: str) -> dict:
+    """Synchronous half of rejecting a company: validate, enforce the free
+    tier's REJECT_CAP-per-scope limit, and mark the row rejected. Returns
+    the row (pre-update, with all scope fields) so the caller can hand it
+    to build_replacement() for the slow part.
+
+    Raises ValueError with a message safe to show the client on any
+    failure (not found, already rejected, cap reached) -- callers should
+    treat this as a 4xx, not a server error.
+    """
+    supabase = get_supabase_client()
+    response = supabase.table("candidates").select("*").eq("id", candidate_id).limit(1).execute()
+    if not response.data:
+        raise ValueError("Company not found.")
+    row = response.data[0]
+    if row.get("rejected"):
+        raise ValueError("Already rejected.")
+
+    rejected_count = get_rejected_count(
+        supabase, row["email"], row["role"], row["location"], row["company_size"], row["include_remote"]
+    )
+    if rejected_count >= REJECT_CAP:
+        raise ValueError(f"Free plan limit reached — up to {REJECT_CAP} rejections per search.")
+
+    now = datetime.now(timezone.utc).isoformat()
+    supabase.table("candidates").update({"rejected": True, "rejected_at": now}).eq("id", candidate_id).execute()
+    return row
+
+
+def build_replacement(row: dict) -> None:
+    """Slow half of rejecting a company -- meant to run as a background
+    task after reject_candidate() already marked the row rejected. Finds
+    exactly one new company for the same scope, excluding every company
+    already saved for it (rejected or not, via _fetch_existing_candidates),
+    and saves it with the rank the rejected company vacated.
+
+    Best-effort: if resume wasn't stored on this row (e.g. it predates the
+    resume column) or the search turns up nothing new, this just logs and
+    leaves the list one short rather than raising -- there's no request
+    waiting on this to respond to.
+    """
+    resume = row.get("resume")
+    if not resume:
+        print(f"[reject] skipping replacement for candidate {row['id']}: no resume stored on this row", flush=True)
+        return
+
+    supabase = get_supabase_client()
+    existing = _fetch_existing_candidates(
+        supabase, row["email"], row["role"], row["location"], row["company_size"], row["include_remote"]
+    )
+    seen_keys = {_dedupe_key(r["company_name"]) for r in existing}
+    already_seen_names = [r["company_name"] for r in existing]
+
+    try:
+        companies = _recommend_with_retry(
+            resume, row["role"], row["location"], row["company_size"], row["include_remote"],
+            angle=None, already_seen=already_seen_names, count=1,
+        )
+    except Exception as e:
+        print(f"[reject] replacement search failed for candidate {row['id']}: {e}", flush=True)
+        return
+
+    new_rows = _save_new_candidates(
+        supabase, companies, seen_keys, row["email"], row["role"], row["location"],
+        row["company_size"], row["include_remote"], resume,
+    )
+    if not new_rows:
+        print(f"[reject] replacement search for candidate {row['id']} found no new unique company", flush=True)
+        return
+
+    # Slot the replacement into the rank the rejected company vacated,
+    # rather than re-ranking the whole scope with another Claude call for
+    # a single swap.
+    supabase.table("candidates").update({"rank": row.get("rank")}).eq("id", new_rows[0]["id"]).execute()
+    print(f"[reject] replacement for candidate {row['id']}: {new_rows[0]['company_name']}", flush=True)
 
 
 if __name__ == "__main__":
