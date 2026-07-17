@@ -27,9 +27,27 @@
 
   <main>
     <div class="container container--wide">
+      <section id="login-panel">
+        <p class="page-intro">Sign in to view leads and the site checklist.</p>
+        <form id="login-form" class="opening-form">
+          <div class="form-field">
+            <label class="form-label" for="login-email">Email</label>
+            <input class="form-input" id="login-email" type="email" required />
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="login-password">Password</label>
+            <input class="form-input" id="login-password" type="password" required />
+          </div>
+          <button class="btn" type="submit">Sign in</button>
+          <p id="login-status" class="form-status"></p>
+        </form>
+      </section>
+
+      <div id="admin-content" hidden>
       <div class="board-toolbar">
         <button id="tab-leads" class="btn" type="button">Leads</button>
         <button id="tab-checklist" class="btn btn-secondary" type="button">Checklist</button>
+        <button id="sign-out" class="btn btn-secondary" type="button">Sign out</button>
       </div>
 
       <section id="leads-panel">
@@ -70,6 +88,7 @@
         </div>
         <p id="checklist-empty" class="simple-list-empty" hidden>No checklist items yet.</p>
       </section>
+      </div>
     </div>
   </main>
 
@@ -92,6 +111,53 @@
   <script src="config.js"></script>
   <script>
     const adminClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // Auth gate -- leads and site_checklist now require a real logged-in
+    // session (RLS was locked down to authenticated-only); this just
+    // shows/hides the UI to match. The public anon key alone can no
+    // longer read either table, so there's nothing sensitive to protect
+    // client-side -- this is purely UX, not the actual security boundary.
+    const loginPanel = document.getElementById('login-panel');
+    const adminContent = document.getElementById('admin-content');
+    const loginForm = document.getElementById('login-form');
+    const loginStatus = document.getElementById('login-status');
+
+    function showAdmin() {
+      loginPanel.hidden = true;
+      adminContent.hidden = false;
+      loadLeads();
+    }
+
+    function showLogin() {
+      loginPanel.hidden = false;
+      adminContent.hidden = true;
+    }
+
+    adminClient.auth.getSession().then(({ data: { session } }) => {
+      if (session) showAdmin();
+      else showLogin();
+    });
+
+    loginForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      loginStatus.textContent = 'Signing in...';
+      const { error } = await adminClient.auth.signInWithPassword({
+        email: document.getElementById('login-email').value,
+        password: document.getElementById('login-password').value,
+      });
+      if (error) {
+        loginStatus.textContent = `Error: ${error.message}`;
+        return;
+      }
+      loginStatus.textContent = '';
+      loginForm.reset();
+      showAdmin();
+    });
+
+    document.getElementById('sign-out').addEventListener('click', async () => {
+      await adminClient.auth.signOut();
+      showLogin();
+    });
 
     function formatDate(value) {
       if (!value) return '';
@@ -159,8 +225,6 @@
         tbody.appendChild(row);
       });
     }
-
-    loadLeads();
 
     // Tabs
     const tabLeads = document.getElementById('tab-leads');
