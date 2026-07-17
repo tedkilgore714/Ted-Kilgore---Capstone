@@ -122,7 +122,17 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
   <script>
-    const adminClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    // A distinct storageKey keeps this login session out of the default
+    // sb-<project>-auth-token slot in localStorage -- every other page
+    // (contact.html, board.js) creates its own supabase-js client with no
+    // storageKey override, so without this they'd all silently pick up
+    // and authenticate as whoever is logged into /admin.html in this same
+    // browser, breaking anon-only actions like the public Contact form
+    // insert and the Openings board read (both only ever granted to the
+    // anon role, never to authenticated).
+    const adminClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: { storageKey: 'aijobscout-admin-auth' },
+    });
 
     // Auth gate -- leads and site_checklist now require a real logged-in
     // session (RLS was locked down to authenticated-only); this just
