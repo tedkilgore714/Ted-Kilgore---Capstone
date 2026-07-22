@@ -85,7 +85,7 @@ class ShortlistRequest(BaseModel):
     location: str
     company_size: str
     include_remote: bool
-    email: str
+    email: str = None  # legacy fallback only -- signed-in requests carry no email, see /shortlist
 
 
 def _run_shortlist_job(resume: str, role: str, location: str, company_size: str, include_remote: bool, email: str, user_id: str = None) -> None:

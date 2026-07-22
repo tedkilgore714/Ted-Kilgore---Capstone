@@ -1,4 +1,8 @@
-const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Reuses auth.js's shared authClient rather than creating a separate
+// instance -- load-bearing, not cosmetic: RLS and the Realtime subscription
+// below both depend on this client actually carrying the signed-in user's
+// JWT, which a freshly-created client wouldn't have.
+const client = authClient;
 
 const STATUS_COLUMNS = [
   { value: 'identified', label: 'Identified' },
@@ -304,5 +308,21 @@ client
   })
   .subscribe();
 
-buildColumns();
-loadOpenings();
+// Gate the whole board behind a signed-in session -- openings.html renders
+// both #signed-out-panel and #signed-in-content hidden by default so there's
+// no flash of the board before this resolves.
+authClient.auth.getSession().then(({ data: { session } }) => {
+  if (!session) {
+    document.getElementById('signed-out-panel').hidden = false;
+    return;
+  }
+  document.getElementById('signed-in-content').hidden = false;
+  document.getElementById('signed-in-note').textContent = `Signed in as ${session.user.email}`;
+  buildColumns();
+  loadOpenings();
+});
+
+document.getElementById('sign-out').addEventListener('click', async () => {
+  await authClient.auth.signOut();
+  window.location.href = 'account.html?return=openings.html';
+});

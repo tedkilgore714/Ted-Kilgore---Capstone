@@ -896,6 +896,11 @@ article p {
 
 .board-toolbar {
   margin-bottom: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
 }
 
 .btn-secondary {

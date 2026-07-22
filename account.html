@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Account &mdash; AI Job Scout</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="stylesheet" href="style.css" />
+  <link rel="icon" type="image/png" href="favicon.png" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <a class="brand" href="index.html">
+        <img class="logo-icon" src="AI-Job-Scout-Logo.png" alt="AI Job Scout" />
+      </a>
+      <nav class="site-nav">
+        <a href="index.html" data-label="Home">Home</a>
+        <a href="how-it-works.html" data-label="How It Works">How It Works</a>
+        <a href="companies.html" data-label="My Companies">My Companies</a>
+        <a href="openings.html" data-label="My Openings">My Openings</a>
+        <a href="about.html" data-label="About">About</a>
+        <a href="contact.html" data-label="Contact">Contact</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="container">
+      <section id="request-panel">
+        <h1>My Account</h1>
+        <p class="page-intro">
+          Sign in with your email &mdash; no password needed. We'll send you a
+          one-time link.
+        </p>
+        <form id="request-form" class="opening-form">
+          <div class="form-field">
+            <label class="form-label" for="request-email">Email</label>
+            <input class="form-input" id="request-email" type="email" required />
+          </div>
+          <button class="btn" type="submit">Send me a link</button>
+          <p id="request-status" class="form-status"></p>
+        </form>
+      </section>
+
+      <section id="sent-panel" hidden>
+        <h1>Check your email</h1>
+        <p class="page-intro">
+          We sent a sign-in link to <span id="sent-email"></span>. Open it on
+          this device to finish signing in &mdash; the link only works in the
+          browser that requested it.
+        </p>
+      </section>
+
+      <section id="confirm-panel" hidden>
+        <h1>Welcome back</h1>
+        <p class="page-intro">Click below to finish signing in.</p>
+        <button class="btn" id="confirm-button" type="button">Continue</button>
+        <p id="confirm-status" class="form-status"></p>
+      </section>
+
+      <section id="signed-in-panel" hidden>
+        <h1>My Account</h1>
+        <p class="page-intro">Signed in as <span id="signed-in-email"></span>.</p>
+        <a class="btn" id="continue-link" href="companies.html">Continue &rarr;</a>
+        <button class="btn btn-secondary" id="sign-out-button" type="button">Sign out</button>
+      </section>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <nav class="footer-nav">
+        <a href="index.html">Home</a>
+        <a href="how-it-works.html">How It Works</a>
+        <a href="companies.html">My Companies</a>
+        <a href="openings.html">My Openings</a>
+        <a href="coming-soon.html">Coming Soon</a>
+        <a href="about.html">About</a>
+        <a href="contact.html">Contact</a>
+      </nav>
+      <p class="footer-note">&copy; 2026 AI Job Scout &mdash; researched company shortlists, straight from the source.</p>
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="auth.js"></script>
+  <script>
+    const requestPanel = document.getElementById('request-panel');
+    const sentPanel = document.getElementById('sent-panel');
+    const confirmPanel = document.getElementById('confirm-panel');
+    const signedInPanel = document.getElementById('signed-in-panel');
+    const requestForm = document.getElementById('request-form');
+    const requestStatus = document.getElementById('request-status');
+    const confirmButton = document.getElementById('confirm-button');
+    const confirmStatus = document.getElementById('confirm-status');
+
+    // Where to send the user after they're signed in -- the page that
+    // redirected here via requireSession(), or My Companies by default.
+    const returnTo = new URLSearchParams(window.location.search).get('return') || 'companies.html';
+
+    function showPanel(panel) {
+      [requestPanel, sentPanel, confirmPanel, signedInPanel].forEach((p) => {
+        p.hidden = p !== panel;
+      });
+    }
+
+    function showSignedIn(email) {
+      document.getElementById('signed-in-email').textContent = email;
+      document.getElementById('continue-link').href = returnTo;
+      showPanel(signedInPanel);
+    }
+
+    // Magic-link click-through. Verification is gated behind an explicit
+    // button click rather than running automatically on page load -- the
+    // same fix built and verified for admin.html's password recovery.
+    // Auto-verifying on load lets anything that renders the page and
+    // executes JS (some email security scanners do) silently burn the
+    // one-time token before the real user clicks it; a button click is a
+    // bar a prefetching scanner doesn't clear.
+    const queryParams = new URLSearchParams(window.location.search);
+    let handlingMagicLink = false;
+
+    if (queryParams.get('type') === 'magiclink' && queryParams.get('token_hash')) {
+      handlingMagicLink = true;
+      showPanel(confirmPanel);
+      confirmButton.addEventListener('click', async () => {
+        confirmButton.disabled = true;
+        confirmStatus.textContent = 'Verifying...';
+        history.replaceState(null, '', window.location.pathname);
+        const { data, error } = await authClient.auth.verifyOtp({
+          token_hash: queryParams.get('token_hash'),
+          type: 'magiclink',
+        });
+        if (error) {
+          confirmButton.disabled = false;
+          confirmStatus.textContent = `Error: ${error.message}`;
+          return;
+        }
+        showSignedIn(data.session.user.email);
+      });
+    }
+
+    if (!handlingMagicLink) {
+      authClient.auth.getSession().then(({ data: { session } }) => {
+        if (session) showSignedIn(session.user.email);
+        else showPanel(requestPanel);
+      });
+    }
+
+    requestForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const email = document.getElementById('request-email').value;
+      requestStatus.textContent = 'Sending...';
+      const { error } = await authClient.auth.signInWithOtp({
+        email,
+        options: {
+          emailRedirectTo: `${window.location.origin}/account.html?return=${encodeURIComponent(returnTo)}`,
+        },
+      });
+      if (error) {
+        requestStatus.textContent = `Error: ${error.message}`;
+        return;
+      }
+      document.getElementById('sent-email').textContent = email;
+      showPanel(sentPanel);
+    });
+
+    document.getElementById('sign-out-button').addEventListener('click', async () => {
+      await authClient.auth.signOut();
+      showPanel(requestPanel);
+    });
+  </script>
+</body>
+</html>

@@ -137,6 +137,11 @@ function describeScope(scope) {
   return text;
 }
 
+async function authHeaders(extra) {
+  const { data: { session } } = await authClient.auth.getSession();
+  return { ...extra, ...(session ? { Authorization: `Bearer ${session.access_token}` } : {}) };
+}
+
 async function rejectCompany(candidateId, company, cardEl, button) {
   if (!confirm(`Reject ${company.company_name}? This uses one of your ${REJECT_CAP} rejections for this search, and a replacement search will run in the background.`)) {
     return;
@@ -147,7 +152,7 @@ async function rejectCompany(candidateId, company, cardEl, button) {
   try {
     const response = await fetch(`${API_BASE}/reject`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ candidate_id: candidateId }),
     });
     const result = await response.json().catch(() => ({}));
@@ -175,7 +180,7 @@ async function loadCompanies() {
 
   let data;
   try {
-    const response = await fetch(`${API_BASE}/candidates`);
+    const response = await fetch(`${API_BASE}/candidates`, { headers: await authHeaders() });
     if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
     data = await response.json();
   } catch (error) {
@@ -235,7 +240,6 @@ shortlistForm.addEventListener('submit', async (event) => {
 
   const payload = {
     resume: document.getElementById('shortlist-resume').value,
-    email: document.getElementById('shortlist-email').value,
     role: document.getElementById('shortlist-role').value,
     location: document.getElementById('shortlist-location').value,
     company_size: document.getElementById('shortlist-size').value,
@@ -245,14 +249,14 @@ shortlistForm.addEventListener('submit', async (event) => {
   try {
     const response = await fetch(`${API_BASE}/shortlist`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(payload),
     });
     if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
     const result = await response.json();
     shortlistStatus.textContent =
       result.message ||
-      `Shortlist search started — this takes about 5-10 minutes. Results will be emailed to ${payload.email} when it's done, or refresh this page.`;
+      `Shortlist search started — this takes about 5-10 minutes. Results will be emailed to you when it's done, or refresh this page.`;
   } catch (error) {
     console.error('Failed to start shortlist search', error);
     shortlistStatus.textContent = `Error: ${error.message}`;
@@ -260,8 +264,6 @@ shortlistForm.addEventListener('submit', async (event) => {
 });
 
 document.getElementById('refresh-companies').addEventListener('click', loadCompanies);
-
-loadCompanies();
 
 // Prefill the location field from the browser's geolocation, so someone
 // searching from where they already live doesn't have to type it --
@@ -303,4 +305,21 @@ function prefillLocation() {
   );
 }
 
-prefillLocation();
+// Gate the whole page behind a signed-in session -- companies.html renders
+// both #signed-out-panel and #signed-in-content hidden by default so there's
+// no flash of the form before this resolves.
+authClient.auth.getSession().then(({ data: { session } }) => {
+  if (!session) {
+    document.getElementById('signed-out-panel').hidden = false;
+    return;
+  }
+  document.getElementById('signed-in-content').hidden = false;
+  document.getElementById('signed-in-note').textContent = `Signed in as ${session.user.email}`;
+  loadCompanies();
+  prefillLocation();
+});
+
+document.getElementById('sign-out').addEventListener('click', async () => {
+  await authClient.auth.signOut();
+  window.location.href = 'account.html?return=companies.html';
+});

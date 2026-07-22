@@ -49,44 +49,56 @@
         </p>
       </section>
 
-      <div class="board-toolbar">
-        <button id="add-toggle" class="btn" type="button">+ Add Opening</button>
+      <section id="signed-out-panel" hidden>
+        <p class="page-intro">Sign in to see your Openings board.</p>
+        <a class="btn" id="signed-out-link" href="account.html?return=openings.html">Sign in &rarr;</a>
+      </section>
+
+      <div id="signed-in-content" hidden>
+        <div class="board-toolbar">
+          <span id="signed-in-note" class="page-intro"></span>
+          <button id="sign-out" class="btn btn-secondary" type="button">Sign out</button>
+        </div>
+
+        <div class="board-toolbar">
+          <button id="add-toggle" class="btn" type="button">+ Add Opening</button>
+        </div>
+
+        <form id="add-form" class="opening-form" hidden>
+          <div class="form-field">
+            <label class="form-label" for="add-title">Title *</label>
+            <input class="form-input" id="add-title" name="title" type="text" required />
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="add-company">Company *</label>
+            <input class="form-input" id="add-company" name="company" type="text" required />
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="add-location">Location</label>
+            <input class="form-input" id="add-location" name="location" type="text" />
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="add-posted_at">Posted date</label>
+            <input class="form-input" id="add-posted_at" name="posted_at" type="date" />
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="add-match_score">Match score (0&ndash;100)</label>
+            <input class="form-input" id="add-match_score" name="match_score" type="number" min="0" max="100" />
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="add-url">URL</label>
+            <input class="form-input" id="add-url" name="url" type="url" placeholder="https://..." />
+          </div>
+          <div class="form-field form-field-wide">
+            <label class="form-label" for="add-notes">Notes</label>
+            <textarea class="form-input" id="add-notes" name="notes" rows="2"></textarea>
+          </div>
+          <button class="btn" type="submit">Add</button>
+          <p id="add-status" class="form-status"></p>
+        </form>
+
+        <div id="board" class="kanban-board board-kanban board-status-colors"></div>
       </div>
-
-      <form id="add-form" class="opening-form" hidden>
-        <div class="form-field">
-          <label class="form-label" for="add-title">Title *</label>
-          <input class="form-input" id="add-title" name="title" type="text" required />
-        </div>
-        <div class="form-field">
-          <label class="form-label" for="add-company">Company *</label>
-          <input class="form-input" id="add-company" name="company" type="text" required />
-        </div>
-        <div class="form-field">
-          <label class="form-label" for="add-location">Location</label>
-          <input class="form-input" id="add-location" name="location" type="text" />
-        </div>
-        <div class="form-field">
-          <label class="form-label" for="add-posted_at">Posted date</label>
-          <input class="form-input" id="add-posted_at" name="posted_at" type="date" />
-        </div>
-        <div class="form-field">
-          <label class="form-label" for="add-match_score">Match score (0&ndash;100)</label>
-          <input class="form-input" id="add-match_score" name="match_score" type="number" min="0" max="100" />
-        </div>
-        <div class="form-field">
-          <label class="form-label" for="add-url">URL</label>
-          <input class="form-input" id="add-url" name="url" type="url" placeholder="https://..." />
-        </div>
-        <div class="form-field form-field-wide">
-          <label class="form-label" for="add-notes">Notes</label>
-          <textarea class="form-input" id="add-notes" name="notes" rows="2"></textarea>
-        </div>
-        <button class="btn" type="submit">Add</button>
-        <p id="add-status" class="form-status"></p>
-      </form>
-
-      <div id="board" class="kanban-board board-kanban board-status-colors"></div>
     </div>
   </main>
 
@@ -169,6 +181,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
+  <script src="auth.js"></script>
   <script src="board.js"></script>
 </body>
 </html>

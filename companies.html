@@ -48,50 +48,58 @@
         </p>
       </section>
 
-      <form id="shortlist-form" class="opening-form">
-        <div class="form-field form-field-wide">
-          <label class="form-label" for="shortlist-resume">Resume</label>
-          <textarea class="form-input" id="shortlist-resume" rows="4" placeholder="Paste your resume here..." required></textarea>
-        </div>
-        <div class="form-field">
-          <label class="form-label" for="shortlist-email">Email</label>
-          <input class="form-input" id="shortlist-email" type="email" placeholder="you@example.com" required />
-        </div>
-        <div class="form-field">
-          <label class="form-label" for="shortlist-role">Target role</label>
-          <input class="form-input" id="shortlist-role" type="text" placeholder="e.g. Director of Professional Services" required />
-        </div>
-        <div class="form-field">
-          <label class="form-label" for="shortlist-location">Location</label>
-          <input class="form-input" id="shortlist-location" type="text" placeholder="e.g. Austin, TX" required />
-        </div>
-        <div class="form-field">
-          <label class="form-label" for="shortlist-size">Preferred company size</label>
-          <select class="form-input" id="shortlist-size">
-            <option>Small (1-200 employees)</option>
-            <option>Mid-size (201-1,000 employees)</option>
-            <option>Large (1,001-5,000 employees)</option>
-            <option>Enterprise (5,000+ employees)</option>
-            <option>Any Size is Great!</option>
-          </select>
-        </div>
-        <div class="form-field">
-          <label class="form-label" for="shortlist-remote">
-            <input id="shortlist-remote" type="checkbox" />
-            Include remote-friendly companies (in addition to a local office within 25 miles)
-          </label>
-        </div>
-        <button class="btn" type="submit">Start shortlist search →</button>
-        <p id="shortlist-status" class="form-status"></p>
-      </form>
+      <section id="signed-out-panel" hidden>
+        <p class="page-intro">Sign in to run a shortlist search and see your own companies.</p>
+        <a class="btn" id="signed-out-link" href="account.html?return=companies.html">Sign in &rarr;</a>
+      </section>
 
-      <div class="board-toolbar">
-        <button id="refresh-companies" class="btn btn-secondary" type="button">Refresh list</button>
+      <div id="signed-in-content" hidden>
+        <div class="board-toolbar">
+          <span id="signed-in-note" class="page-intro"></span>
+          <button id="sign-out" class="btn btn-secondary" type="button">Sign out</button>
+        </div>
+
+        <form id="shortlist-form" class="opening-form">
+          <div class="form-field form-field-wide">
+            <label class="form-label" for="shortlist-resume">Resume</label>
+            <textarea class="form-input" id="shortlist-resume" rows="4" placeholder="Paste your resume here..." required></textarea>
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="shortlist-role">Target role</label>
+            <input class="form-input" id="shortlist-role" type="text" placeholder="e.g. Director of Professional Services" required />
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="shortlist-location">Location</label>
+            <input class="form-input" id="shortlist-location" type="text" placeholder="e.g. Austin, TX" required />
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="shortlist-size">Preferred company size</label>
+            <select class="form-input" id="shortlist-size">
+              <option>Small (1-200 employees)</option>
+              <option>Mid-size (201-1,000 employees)</option>
+              <option>Large (1,001-5,000 employees)</option>
+              <option>Enterprise (5,000+ employees)</option>
+              <option>Any Size is Great!</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="shortlist-remote">
+              <input id="shortlist-remote" type="checkbox" />
+              Include remote-friendly companies (in addition to a local office within 25 miles)
+            </label>
+          </div>
+          <button class="btn" type="submit">Start shortlist search →</button>
+          <p id="shortlist-status" class="form-status"></p>
+        </form>
+
+        <div class="board-toolbar">
+          <button id="refresh-companies" class="btn btn-secondary" type="button">Refresh list</button>
+        </div>
+
+        <p id="companies-scope-label" class="page-intro"></p>
+        <p id="reject-limit-note" class="reject-limit-note"></p>
+        <div id="companies-list" class="company-grid"></div>
       </div>
-
-      <p id="companies-scope-label" class="page-intro"></p>
-      <p id="reject-limit-note" class="reject-limit-note"></p>
-      <div id="companies-list" class="company-grid"></div>
     </div>
   </main>
 
@@ -110,6 +118,9 @@
     </div>
   </footer>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="auth.js"></script>
   <script src="companies.js"></script>
 </body>
 </html>
