@@ -55,6 +55,12 @@
         </form>
       </section>
 
+      <section id="confirm-recovery-panel" hidden>
+        <p class="page-intro">Click below to continue resetting your password.</p>
+        <button class="btn" id="confirm-recovery-button" type="button">Continue</button>
+        <p id="confirm-recovery-status" class="form-status"></p>
+      </section>
+
       <div id="admin-content" hidden>
       <div class="board-toolbar">
         <button id="tab-leads" class="btn" type="button">Leads</button>
@@ -141,6 +147,9 @@
     // client-side -- this is purely UX, not the actual security boundary.
     const loginPanel = document.getElementById('login-panel');
     const resetPanel = document.getElementById('reset-panel');
+    const confirmRecoveryPanel = document.getElementById('confirm-recovery-panel');
+    const confirmRecoveryButton = document.getElementById('confirm-recovery-button');
+    const confirmRecoveryStatus = document.getElementById('confirm-recovery-status');
     const adminContent = document.getElementById('admin-content');
     const loginForm = document.getElementById('login-form');
     const loginStatus = document.getElementById('login-status');
@@ -150,6 +159,7 @@
     function showAdmin() {
       loginPanel.hidden = true;
       resetPanel.hidden = true;
+      confirmRecoveryPanel.hidden = true;
       adminContent.hidden = false;
       loadLeads();
     }
@@ -157,12 +167,21 @@
     function showLogin() {
       loginPanel.hidden = false;
       resetPanel.hidden = true;
+      confirmRecoveryPanel.hidden = true;
       adminContent.hidden = true;
     }
 
     function showReset() {
       loginPanel.hidden = true;
       resetPanel.hidden = false;
+      confirmRecoveryPanel.hidden = true;
+      adminContent.hidden = true;
+    }
+
+    function showConfirmRecovery() {
+      loginPanel.hidden = true;
+      resetPanel.hidden = true;
+      confirmRecoveryPanel.hidden = false;
       adminContent.hidden = true;
     }
 
@@ -171,22 +190,25 @@
     //  1. #access_token=... in the hash (Supabase's default email template
     //     -- its link points straight at Supabase's own /verify endpoint,
     //     which completes auth on any GET, including an email
-    //     security-scanner's automated prefetch. That silently burns the
-    //     one-time token before the real click, so this path is racy.)
+    //     security-scanner's automated prefetch, before the real click.)
     //  2. ?token_hash=...&type=recovery in the query string (a link we
-    //     construct ourselves, pointing directly at this page). Verifying
-    //     is a POST triggered by our own JS, not a GET a scanner can
-    //     complete on its own, so this path is immune to that race.
-    // Both are handled explicitly rather than relying solely on the
-    // client's built-in detectSessionInUrl, which wasn't firing reliably.
+    //     construct ourselves, pointing directly at this page).
+    // Neither path is verified automatically on page load -- confirmed via
+    // Supabase's own auth logs that #1's GET-completes-auth race lets a
+    // scanner burn the token in seconds, and separately confirmed that
+    // auto-verifying #2 the moment the page loads has the *same* race one
+    // layer removed (a scanner that renders the page and executes JS -- as
+    // some do -- triggers our verifyOtp() call just as fast as a bare GET
+    // would). The fix for both: require an explicit button click before
+    // either setSession or verifyOtp ever runs. A prefetching scanner
+    // fetches/renders the page but doesn't click buttons, so the token
+    // survives until the real user gets here.
     let handlingRecovery = false;
     const hashParams = new URLSearchParams(window.location.hash.slice(1));
     const queryParams = new URLSearchParams(window.location.search);
 
     function finishRecovery(promise) {
-      handlingRecovery = true;
       promise.then(({ error }) => {
-        history.replaceState(null, '', window.location.pathname);
         if (error) {
           showLogin();
           loginStatus.textContent = `Error: ${error.message}`;
@@ -197,19 +219,33 @@
     }
 
     if (hashParams.get('type') === 'recovery' && hashParams.get('access_token')) {
-      finishRecovery(
-        adminClient.auth.setSession({
-          access_token: hashParams.get('access_token'),
-          refresh_token: hashParams.get('refresh_token'),
-        })
-      );
+      handlingRecovery = true;
+      showConfirmRecovery();
+      confirmRecoveryButton.addEventListener('click', () => {
+        confirmRecoveryButton.disabled = true;
+        confirmRecoveryStatus.textContent = 'Verifying...';
+        history.replaceState(null, '', window.location.pathname);
+        finishRecovery(
+          adminClient.auth.setSession({
+            access_token: hashParams.get('access_token'),
+            refresh_token: hashParams.get('refresh_token'),
+          })
+        );
+      });
     } else if (queryParams.get('type') === 'recovery' && queryParams.get('token_hash')) {
-      finishRecovery(
-        adminClient.auth.verifyOtp({
-          token_hash: queryParams.get('token_hash'),
-          type: 'recovery',
-        })
-      );
+      handlingRecovery = true;
+      showConfirmRecovery();
+      confirmRecoveryButton.addEventListener('click', () => {
+        confirmRecoveryButton.disabled = true;
+        confirmRecoveryStatus.textContent = 'Verifying...';
+        history.replaceState(null, '', window.location.pathname);
+        finishRecovery(
+          adminClient.auth.verifyOtp({
+            token_hash: queryParams.get('token_hash'),
+            type: 'recovery',
+          })
+        );
+      });
     }
 
     adminClient.auth.onAuthStateChange((event) => {
