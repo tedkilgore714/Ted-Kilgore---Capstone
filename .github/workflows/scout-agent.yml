@@ -2,9 +2,10 @@ name: Weekly Scout Digest
 
 on:
   schedule:
-    # Mondays at 12:00 UTC (~7am Central during CDT, 6am during CST).
+    # Mondays at 09:00 UTC (~4am Central during CDT, 3am during CST) --
+    # moved off the 7am slot to run before the day's busier API traffic.
     # Adjust the hour if you want the email to land at a different time.
-    - cron: "0 12 * * 1"
+    - cron: "0 9 * * 1"
   workflow_dispatch: {}  # adds a "Run workflow" button for manual test runs
 
 jobs:
