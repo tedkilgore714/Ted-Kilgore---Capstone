@@ -1,0 +1,27 @@
+-- Reference schema for public.openings, checked in for the first time
+-- alongside the user_accounts_phase1.sql migration -- every other table in
+-- this project has a checked-in migration file except this one (it was
+-- created ad hoc in the Supabase dashboard). Captured from the live schema
+-- via information_schema.columns, not a re-run script -- the table already
+-- exists; this documents it for future reference and matches convention.
+--
+-- Columns as of the user_id migration (see user_accounts_phase1.sql /
+-- user_accounts_phase5.sql for what was added on top of this):
+--
+--   id             uuid                      not null default gen_random_uuid()
+--   company        text                      not null
+--   title          text                      not null
+--   url            text
+--   location       text
+--   posted_at      date
+--   salary_range   text
+--   match_score    integer
+--   match_reasons  text
+--   notes          text
+--   status         text                      not null default 'identified'
+--   created_at     timestamptz               default now()
+--   updated_at     timestamptz               default now()
+--   user_id        uuid references auth.users(id) on delete cascade  -- added by user_accounts_phase1.sql
+--
+-- status values in use (see board.js STATUS_COLUMNS): identified, applied,
+-- interviewing, closed.

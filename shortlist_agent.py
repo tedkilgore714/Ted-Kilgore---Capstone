@@ -126,18 +126,25 @@ def _dedupe_key(name: str) -> str:
     return name.strip().lower()
 
 
-def _fetch_existing_candidates(supabase, email: str, role: str, location: str, company_size: str, include_remote: bool) -> list:
+def _fetch_existing_candidates(supabase, email: str, role: str, location: str, company_size: str, include_remote: bool, user_id: str = None) -> list:
     """Candidates are scoped to the exact search that found them, including
     who ran it -- so two different people searching the same role/location/
     size/remote don't collide (the second person would otherwise just get
     the first person's saved results without ever running their own
     search), and a different role/location/etc. starts its own independent
     shortlist instead of colliding with — or being blocked by — an
-    unrelated one."""
+    unrelated one.
+
+    Dual-path (Phase 2 of the accounts rollout, see user_accounts_phase1.sql):
+    a verified user_id scopes strictly to that user's own rows, ignoring
+    email entirely. Falls back to the legacy unverified email filter only
+    when user_id isn't given -- e.g. the old server-rendered demo routes
+    that predate auth.
+    """
+    query = supabase.table("candidates").select("*")
+    query = query.eq("user_id", user_id) if user_id else query.eq("email", email)
     response = (
-        supabase.table("candidates")
-        .select("*")
-        .eq("email", email)
+        query
         .eq("role", role)
         .eq("location", location)
         .eq("company_size", company_size)
@@ -158,12 +165,17 @@ def _save_new_candidates(
     company_size: str,
     include_remote: bool,
     resume: str = None,
+    user_id: str = None,
 ) -> list:
     """Insert companies not already in seen_keys. Returns the newly inserted rows (with their DB ids).
 
     resume is stored on each row (denormalized, same value across a
     scope's rows) so a later reject-and-replace call can run a new search
     without the client re-sending their whole resume.
+
+    user_id is stamped when a verified session made the request (Phase 2 of
+    the accounts rollout); left null for the legacy unauthenticated path,
+    same dual-path reasoning as _fetch_existing_candidates.
     """
     rows_to_insert = []
     for c in companies:
@@ -188,6 +200,7 @@ def _save_new_candidates(
                 "company_size": company_size,
                 "include_remote": include_remote,
                 "resume": resume,
+                "user_id": user_id,
             }
         )
     if not rows_to_insert:
@@ -313,6 +326,7 @@ def build_shortlist(
     company_size: str,
     include_remote: bool,
     recipient_email: str = DEFAULT_RECIPIENT_EMAIL,
+    user_id: str = None,
 ) -> list:
     """Build a shortlist of TARGET_COUNT unique companies via
     company_recommender.recommend_companies (fit-matched, best-effort
@@ -320,6 +334,11 @@ def build_shortlist(
     as found, then rank by fit and email a digest. Observe/Think/Act/Check
     loop, capped at MAX_TOOL_CALLS — expected to need only 1-2 calls since
     a single recommend_companies() call already targets ~TARGET_COUNT.
+
+    user_id is set when the request carried a verified Supabase session
+    (Phase 2 of the accounts rollout) -- scoping and row ownership then
+    key off it instead of the unverified recipient_email string. None for
+    the legacy unauthenticated path.
     """
     anthropic_key = _require_env("ANTHROPIC_API_KEY")
     _require_env("COMPOSIO_API_KEY")
@@ -327,7 +346,7 @@ def build_shortlist(
     claude = Anthropic(api_key=anthropic_key, timeout=600.0)
     supabase = get_supabase_client()
 
-    existing = _fetch_existing_candidates(supabase, recipient_email, role, location, company_size, include_remote)
+    existing = _fetch_existing_candidates(supabase, recipient_email, role, location, company_size, include_remote, user_id)
     seen_keys = {_dedupe_key(row["company_name"]) for row in existing}
     all_saved = list(existing)
 
@@ -380,7 +399,7 @@ def build_shortlist(
             print(f"[iteration {iteration}] error: CompanyRecommender call failed after retries ({e})", flush=True)
             companies = []
 
-        new_rows = _save_new_candidates(supabase, companies, seen_keys, recipient_email, role, location, company_size, include_remote, resume)
+        new_rows = _save_new_candidates(supabase, companies, seen_keys, recipient_email, role, location, company_size, include_remote, resume, user_id)
         all_saved.extend(new_rows)
         print(
             f"[iteration {iteration}] act: CompanyRecommender returned {len(companies)} "
@@ -439,11 +458,11 @@ def build_shortlist(
 REJECT_CAP = 5
 
 
-def get_rejected_count(supabase, email: str, role: str, location: str, company_size: str, include_remote: bool) -> int:
+def get_rejected_count(supabase, email: str, role: str, location: str, company_size: str, include_remote: bool, user_id: str = None) -> int:
+    query = supabase.table("candidates").select("id", count="exact")
+    query = query.eq("user_id", user_id) if user_id else query.eq("email", email)
     response = (
-        supabase.table("candidates")
-        .select("id", count="exact")
-        .eq("email", email)
+        query
         .eq("role", role)
         .eq("location", location)
         .eq("company_size", company_size)
@@ -454,15 +473,22 @@ def get_rejected_count(supabase, email: str, role: str, location: str, company_s
     return response.count or 0
 
 
-def reject_candidate(candidate_id: str) -> dict:
+def reject_candidate(candidate_id: str, user_id: str = None) -> dict:
     """Synchronous half of rejecting a company: validate, enforce the free
     tier's REJECT_CAP-per-scope limit, and mark the row rejected. Returns
     the row (pre-update, with all scope fields) so the caller can hand it
     to build_replacement() for the slow part.
 
     Raises ValueError with a message safe to show the client on any
-    failure (not found, already rejected, cap reached) -- callers should
-    treat this as a 4xx, not a server error.
+    failure (not found, already rejected, not the owner, cap reached) --
+    callers should treat this as a 4xx, not a server error.
+
+    user_id, when given (Phase 2 of the accounts rollout), must match the
+    row's own user_id or the reject is refused -- this is the actual fix
+    for "anyone can reject anyone's candidate by guessing a candidate_id".
+    A row with no user_id yet (legacy, pre-backfill) can't be verified
+    either way, so it's allowed through during the dual-path window rather
+    than permanently locking out the site's own pre-migration test data.
     """
     supabase = get_supabase_client()
     response = supabase.table("candidates").select("*").eq("id", candidate_id).limit(1).execute()
@@ -471,9 +497,11 @@ def reject_candidate(candidate_id: str) -> dict:
     row = response.data[0]
     if row.get("rejected"):
         raise ValueError("Already rejected.")
+    if user_id and row.get("user_id") and row["user_id"] != user_id:
+        raise ValueError("Not authorized to reject this candidate.")
 
     rejected_count = get_rejected_count(
-        supabase, row["email"], row["role"], row["location"], row["company_size"], row["include_remote"]
+        supabase, row["email"], row["role"], row["location"], row["company_size"], row["include_remote"], row.get("user_id")
     )
     if rejected_count >= REJECT_CAP:
         raise ValueError(f"Free plan limit reached — up to {REJECT_CAP} rejections per search.")
@@ -500,9 +528,10 @@ def build_replacement(row: dict) -> None:
         print(f"[reject] skipping replacement for candidate {row['id']}: no resume stored on this row", flush=True)
         return
 
+    user_id = row.get("user_id")
     supabase = get_supabase_client()
     existing = _fetch_existing_candidates(
-        supabase, row["email"], row["role"], row["location"], row["company_size"], row["include_remote"]
+        supabase, row["email"], row["role"], row["location"], row["company_size"], row["include_remote"], user_id
     )
     seen_keys = {_dedupe_key(r["company_name"]) for r in existing}
     already_seen_names = [r["company_name"] for r in existing]
@@ -518,7 +547,7 @@ def build_replacement(row: dict) -> None:
 
     new_rows = _save_new_candidates(
         supabase, companies, seen_keys, row["email"], row["role"], row["location"],
-        row["company_size"], row["include_remote"], resume,
+        row["company_size"], row["include_remote"], resume, user_id,
     )
     if not new_rows:
         print(f"[reject] replacement search for candidate {row['id']} found no new unique company", flush=True)
