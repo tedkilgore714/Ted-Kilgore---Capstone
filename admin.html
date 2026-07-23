@@ -65,8 +65,10 @@
       <div class="board-toolbar">
         <button id="tab-leads" class="btn" type="button">Leads</button>
         <button id="tab-checklist" class="btn btn-secondary" type="button">Checklist</button>
+        <button id="change-password" class="btn btn-secondary" type="button">Change password</button>
         <button id="sign-out" class="btn btn-secondary" type="button">Sign out</button>
       </div>
+      <p id="change-password-status" class="form-status"></p>
 
       <section id="leads-panel">
         <p class="page-intro">Signups from the Contact form, pulled live from Supabase.</p>
@@ -293,6 +295,23 @@
     document.getElementById('sign-out').addEventListener('click', async () => {
       await adminClient.auth.signOut();
       showLogin();
+    });
+
+    // Same mechanism as the Supabase dashboard's "Send password recovery"
+    // button -- sends a real reset email through the reset-password
+    // template, which lands back here via the confirm-recovery-panel /
+    // token_hash flow above.
+    document.getElementById('change-password').addEventListener('click', async () => {
+      const statusEl = document.getElementById('change-password-status');
+      const { data: { session } } = await adminClient.auth.getSession();
+      if (!session) return;
+      statusEl.textContent = 'Sending reset link...';
+      const { error } = await adminClient.auth.resetPasswordForEmail(session.user.email, {
+        redirectTo: `${window.location.origin}/admin.html`,
+      });
+      statusEl.textContent = error
+        ? `Error: ${error.message}`
+        : `Reset link sent to ${session.user.email} -- check your email.`;
     });
 
     function formatDate(value) {
