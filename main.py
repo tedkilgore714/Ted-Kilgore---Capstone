@@ -23,13 +23,11 @@ app.add_middleware(
 
 
 def get_current_user(authorization: str = Header(None)) -> dict | None:
-    """Phase 2 of the real-per-user-accounts rollout (see
-    user_accounts_phase1.sql) -- optional for now. Returns None (not an
-    error) when no/invalid Authorization is given, so every caller of this
-    can keep working unauthenticated during the dual-path window; Phase 5
-    is what makes this required. Validates the token against Supabase's
-    Auth server directly (supabase-py's auth.get_user) rather than adding
-    a JWT-decoding dependency -- fine at this traffic level.
+    """Validates a bearer token against Supabase's Auth server directly
+    (supabase-py's auth.get_user) rather than adding a JWT-decoding
+    dependency -- fine at this traffic level. Returns None (not an error)
+    when no/invalid Authorization is given -- used as-is by /candidates-demo
+    and /shortlist-demo below, which stay unauthenticated on purpose.
     """
     if not authorization or not authorization.startswith("Bearer "):
         return None
@@ -41,6 +39,18 @@ def get_current_user(authorization: str = Header(None)) -> dict | None:
     if not resp or not resp.user:
         return None
     return {"id": resp.user.id, "email": resp.user.email}
+
+
+def require_user(user: dict | None = Depends(get_current_user)) -> dict:
+    """Phase 5 of the real-per-user-accounts rollout: Authorization is now
+    required on the customer-facing endpoints below -- the Phase 2 dual-path
+    fallback (unauthenticated requests keyed by a client-supplied email) is
+    gone. /candidates-demo and /shortlist-demo intentionally don't use this
+    and will start 401ing on their unauthenticated fetches; they're
+    internal/legacy demo routes, not the real site."""
+    if user is None:
+        raise HTTPException(status_code=401, detail="Sign in required.")
+    return user
 
 
 class MatchRequest(BaseModel):
@@ -100,13 +110,8 @@ def _run_shortlist_job(resume: str, role: str, location: str, company_size: str,
 
 
 @app.post("/shortlist")
-def shortlist(request: ShortlistRequest, background_tasks: BackgroundTasks, user: dict = Depends(get_current_user)):
-    # Dual-path (Phase 2 of the accounts rollout): a verified session's
-    # email always wins over whatever the client typed in the request body,
-    # since only the former is actually backed by anything -- but the
-    # client-supplied email keeps working when there's no session yet, so
-    # this doesn't break anything ahead of the frontend shipping auth.
-    recipient_email = user["email"] if user else request.email
+def shortlist(request: ShortlistRequest, background_tasks: BackgroundTasks, user: dict = Depends(require_user)):
+    recipient_email = user["email"]
     background_tasks.add_task(
         _run_shortlist_job,
         request.resume,
@@ -115,7 +120,7 @@ def shortlist(request: ShortlistRequest, background_tasks: BackgroundTasks, user
         request.company_size,
         request.include_remote,
         recipient_email,
-        user["id"] if user else None,
+        user["id"],
     )
     return {
         "status": "started",
@@ -125,25 +130,14 @@ def shortlist(request: ShortlistRequest, background_tasks: BackgroundTasks, user
 
 @app.get("/candidates")
 def candidates(
-    email: str = None,
     role: str = None,
     location: str = None,
     company_size: str = None,
     include_remote: bool = None,
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(require_user),
 ):
     supabase = get_supabase_client()
-    query = supabase.table("candidates").select("*")
-    # A verified session scopes strictly to that user's own rows, ignoring
-    # any client-supplied email entirely -- that's the actual fix for
-    # "anyone can read anyone's shortlist by passing an arbitrary email".
-    # Only falls back to the old unverified email filter when there's no
-    # session at all, so this stays a no-op change until the frontend
-    # actually starts sending a session.
-    if user is not None:
-        query = query.eq("user_id", user["id"])
-    elif email is not None:
-        query = query.eq("email", email)
+    query = supabase.table("candidates").select("*").eq("user_id", user["id"])
     if role is not None:
         query = query.eq("role", role)
     if location is not None:
@@ -161,9 +155,9 @@ class RejectRequest(BaseModel):
 
 
 @app.post("/reject")
-def reject(request: RejectRequest, background_tasks: BackgroundTasks, user: dict = Depends(get_current_user)):
+def reject(request: RejectRequest, background_tasks: BackgroundTasks, user: dict = Depends(require_user)):
     try:
-        row = reject_candidate(request.candidate_id, user_id=user["id"] if user else None)
+        row = reject_candidate(request.candidate_id, user_id=user["id"])
     except ValueError as e:
         status_code = 404 if str(e) == "Company not found." else 403
         raise HTTPException(status_code=status_code, detail=str(e))
