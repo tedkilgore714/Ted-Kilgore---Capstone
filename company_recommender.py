@@ -24,6 +24,17 @@ COMPANY_SIZE_OPTIONS = [
 ANY_COMPANY_SIZE = "Any Size is Great!"
 
 LOCAL_RADIUS_MILES = 25
+ANY_RADIUS_MILES = 0  # sentinel meaning "no distance constraint" -- kept as an
+# int rather than nullable so the candidates table's unique scope-key index
+# can dedupe on it (a unique index never treats NULL = NULL).
+RADIUS_OPTIONS_MILES = [10, 25, 50, 100]  # single source of truth for the
+# frontend dropdown; ANY_RADIUS_MILES is offered separately as "Any distance".
+
+CEO_CHANGE_LIMIT_STABLE = 2  # today's fixed hard-exclude threshold
+CEO_CHANGE_LIMIT_RELAXED = 5  # used when prioritize_stability is off --
+# meaningfully looser (average CEO tenure under 2 years to trigger it) without
+# removing the hard exclude outright; still catches genuine revolving-door
+# leadership.
 
 TRAILING_COMMA_PATTERN = re.compile(r",(\s*[\]}])")
 URL_PATTERN = re.compile(r"^https?://\S+$")
@@ -46,10 +57,66 @@ ATS_DOMAINS = [
     "breezy.hr",
 ]
 
-def _build_system_prompt(count: int) -> str:
+def _build_system_prompt(
+    count: int,
+    radius_miles: int = LOCAL_RADIUS_MILES,
+    prioritize_growth: bool = True,
+    prioritize_stability: bool = True,
+) -> str:
     """count is normally TARGET_COMPANY_COUNT (a full shortlist), but a
     reject-and-replace call asks for just 1 -- same targeting criteria and
-    research process either way, just a different yield."""
+    research process either way, just a different yield.
+
+    radius_miles, prioritize_growth, and prioritize_stability are per-search
+    customizations (see candidates_search_options.sql) -- each defaults to
+    the value that reproduces this function's original fixed behavior, so
+    any caller that doesn't pass them gets exactly what it always got.
+    """
+    if radius_miles == ANY_RADIUS_MILES:
+        location_bullet = (
+            "- Location: there is no distance limit on \"local\" for this "
+            "search — any company with a genuine office anywhere counts as "
+            "satisfying the location requirement, regardless of how far it is "
+            "from the given location. If remote inclusion is OFF, only "
+            "include companies with an office somewhere. If remote inclusion "
+            "is ON, also include companies that offer remote work for this "
+            "type of role even if they have no office at all.\n"
+        )
+        location_match_example = "\"Office in Austin, TX\""
+    else:
+        location_bullet = (
+            f"- Location: \"local\" means the company has an office within "
+            f"{radius_miles} miles of the given location. If remote inclusion "
+            "is OFF, only include companies with a local office. If remote "
+            "inclusion is ON, include companies with a local office AND any "
+            "company (regardless of where its office is) that offers remote "
+            "work for this type of role.\n"
+        )
+        location_match_example = f"\"Local office within {radius_miles} miles of Austin, TX\""
+
+    if prioritize_growth:
+        growth_bullet = (
+            "- Growth: prefer companies whose headcount appears to be "
+            "increasing year-over-year for the past few years, based on "
+            "best-effort public signals (LinkedIn headcount trends, news, "
+            "funding announcements, etc).\n"
+        )
+    else:
+        growth_bullet = (
+            "- Growth: headcount trend is not a search criterion for this "
+            "run — do not favor or penalize a company based on whether its "
+            "headcount appears to be growing, flat, or shrinking. Still "
+            "report whatever growth signal you find in growth_note "
+            "(informational only), just don't let it affect which companies "
+            "you pick.\n"
+        )
+
+    ceo_change_limit = CEO_CHANGE_LIMIT_STABLE if prioritize_stability else CEO_CHANGE_LIMIT_RELAXED
+    stability_bullet = (
+        f"- Hard exclude: do not include any company where the CEO has "
+        f"changed more than {ceo_change_limit} times in the past 10 years.\n\n"
+    )
+
     return (
         "You are a job hunt strategist. Given a resume, target role, location, a "
         "preferred company size range, and whether to include remote-friendly "
@@ -70,12 +137,7 @@ def _build_system_prompt(count: int) -> str:
         "Targeting criteria:\n"
         "- Role: match the target role, or a close director/leadership-level "
         "equivalent in the same function.\n"
-        f"- Location: \"local\" means the company has an office within "
-        f"{LOCAL_RADIUS_MILES} miles of the given location. If remote inclusion "
-        "is OFF, only include companies with a local office. If remote "
-        "inclusion is ON, include companies with a local office AND any company "
-        "(regardless of where its office is) that offers remote work for this "
-        "type of role.\n"
+        f"{location_bullet}"
         "- Company size: a preference for the given size range, not a strict "
         "hard filter — but do not stretch it loosely either. Only include a "
         "company outside the range if its size is within roughly 50% of the "
@@ -90,14 +152,11 @@ def _build_system_prompt(count: int) -> str:
         "ignore this range/50% guidance entirely and pick the best-fitting "
         "companies regardless of size, from tiny startups to huge "
         "enterprises.\n"
-        "- Growth: prefer companies whose headcount appears to be increasing "
-        "year-over-year for the past few years, based on best-effort public "
-        "signals (LinkedIn headcount trends, news, funding announcements, etc).\n"
-        "- Hard exclude: do not include any company where the CEO has changed "
-        "more than twice in the past 10 years.\n\n"
+        f"{growth_bullet}"
+        f"{stability_bullet}"
         "For each company, return: company_name, size_estimate, location_match "
-        "(how this company satisfies the location requirement, e.g. \"Local "
-        f"office within {LOCAL_RADIUS_MILES} miles of Austin, TX\" or "
+        "(how this company satisfies the location requirement, e.g. "
+        f"{location_match_example} or "
         "\"Remote-friendly, HQ in Denver, CO\"), growth_note (a brief "
         "best-effort note on headcount trend and any leadership-turnover signal "
         "you found — this is best-effort research, not guaranteed-accurate "
@@ -192,6 +251,9 @@ def recommend_companies(
     location: str,
     company_size: str,
     include_remote: bool,
+    radius_miles: int = LOCAL_RADIUS_MILES,
+    prioritize_growth: bool = True,
+    prioritize_stability: bool = True,
     angle: str = None,
     already_seen: list = None,
     count: int = TARGET_COMPANY_COUNT,
@@ -204,7 +266,11 @@ def recommend_companies(
 
     include_remote controls whether remote-friendly companies (regardless
     of office location) are included alongside local ones (within
-    LOCAL_RADIUS_MILES of location).
+    radius_miles of location).
+
+    radius_miles, prioritize_growth, and prioritize_stability are per-search
+    customizations (see candidates_search_options.sql) -- defaults reproduce
+    this function's original fixed behavior.
 
     angle is an optional steering hint for this call (e.g. "healthcare
     companies" or "sub-100-employee startups") — useful for callers that
@@ -255,7 +321,7 @@ def recommend_companies(
     runner = claude.beta.messages.tool_runner(
         model=MODEL,
         max_tokens=MAX_TOKENS,
-        system=_build_system_prompt(count),
+        system=_build_system_prompt(count, radius_miles, prioritize_growth, prioritize_stability),
         tools=[web_search],
         messages=[{"role": "user", "content": user_message}],
     )

@@ -88,6 +88,33 @@
               Include remote-friendly companies (in addition to a local office within 25 miles)
             </label>
           </div>
+          <div class="form-field">
+            <button id="advanced-toggle" class="btn btn-secondary" type="button">Advanced options</button>
+          </div>
+          <div id="advanced-options" hidden>
+            <div class="form-field">
+              <label class="form-label" for="shortlist-radius">Search radius</label>
+              <select class="form-input" id="shortlist-radius">
+                <option value="10">10 miles</option>
+                <option value="25" selected>25 miles</option>
+                <option value="50">50 miles</option>
+                <option value="100">100 miles</option>
+                <option value="0">Any distance</option>
+              </select>
+            </div>
+            <div class="form-field">
+              <label class="form-label" for="shortlist-growth">
+                <input id="shortlist-growth" type="checkbox" checked />
+                Prioritize companies with growing headcount
+              </label>
+            </div>
+            <div class="form-field">
+              <label class="form-label" for="shortlist-stability">
+                <input id="shortlist-stability" type="checkbox" checked />
+                Prioritize leadership stability (excludes companies with frequent CEO turnover)
+              </label>
+            </div>
+          </div>
           <button class="btn" type="submit">Start shortlist search →</button>
           <p id="shortlist-status" class="form-status"></p>
         </form>

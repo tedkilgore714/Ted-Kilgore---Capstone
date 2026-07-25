@@ -9,7 +9,7 @@ from composio import Composio
 from dotenv import load_dotenv
 from supabase import create_client
 
-from company_recommender import recommend_companies
+from company_recommender import LOCAL_RADIUS_MILES, recommend_companies
 
 load_dotenv(os.path.join(os.path.dirname(__file__), "aijobscout.env"))
 
@@ -126,14 +126,27 @@ def _dedupe_key(name: str) -> str:
     return name.strip().lower()
 
 
-def _fetch_existing_candidates(supabase, email: str, role: str, location: str, company_size: str, include_remote: bool, user_id: str = None) -> list:
+def _fetch_existing_candidates(
+    supabase,
+    email: str,
+    role: str,
+    location: str,
+    company_size: str,
+    include_remote: bool,
+    radius_miles: int = LOCAL_RADIUS_MILES,
+    prioritize_growth: bool = True,
+    prioritize_stability: bool = True,
+    user_id: str = None,
+) -> list:
     """Candidates are scoped to the exact search that found them, including
     who ran it -- so two different people searching the same role/location/
     size/remote don't collide (the second person would otherwise just get
     the first person's saved results without ever running their own
     search), and a different role/location/etc. starts its own independent
     shortlist instead of colliding with — or being blocked by — an
-    unrelated one.
+    unrelated one. radius_miles/prioritize_growth/prioritize_stability
+    (see candidates_search_options.sql) are part of this same scope key --
+    two searches that only differ in these still get independent results.
 
     Dual-path (Phase 2 of the accounts rollout, see user_accounts_phase1.sql):
     a verified user_id scopes strictly to that user's own rows, ignoring
@@ -149,6 +162,9 @@ def _fetch_existing_candidates(supabase, email: str, role: str, location: str, c
         .eq("location", location)
         .eq("company_size", company_size)
         .eq("include_remote", include_remote)
+        .eq("radius_miles", radius_miles)
+        .eq("prioritize_growth", prioritize_growth)
+        .eq("prioritize_stability", prioritize_stability)
         .order("rank")
         .execute()
     )
@@ -164,6 +180,9 @@ def _save_new_candidates(
     location: str,
     company_size: str,
     include_remote: bool,
+    radius_miles: int = LOCAL_RADIUS_MILES,
+    prioritize_growth: bool = True,
+    prioritize_stability: bool = True,
     resume: str = None,
     user_id: str = None,
 ) -> list:
@@ -199,6 +218,9 @@ def _save_new_candidates(
                 "location": location,
                 "company_size": company_size,
                 "include_remote": include_remote,
+                "radius_miles": radius_miles,
+                "prioritize_growth": prioritize_growth,
+                "prioritize_stability": prioritize_stability,
                 "resume": resume,
                 "user_id": user_id,
             }
@@ -228,7 +250,11 @@ def _pick_next_angle(claude, messages: list) -> tuple:
     return tool_use.input.get("angle", ""), tool_use.id, response.content
 
 
-def _recommend_with_retry(resume, role, location, company_size, include_remote, angle, already_seen, count=TARGET_COUNT, max_attempts=3):
+def _recommend_with_retry(
+    resume, role, location, company_size, include_remote, angle, already_seen,
+    radius_miles=LOCAL_RADIUS_MILES, prioritize_growth=True, prioritize_stability=True,
+    count=TARGET_COUNT, max_attempts=3,
+):
     """CompanyRecommender occasionally hits transient Anthropic errors (e.g.
     529 Overloaded) — retry a couple times with a short backoff before
     giving up on this angle, instead of treating one hiccup as 0 results."""
@@ -236,6 +262,8 @@ def _recommend_with_retry(resume, role, location, company_size, include_remote, 
         try:
             return recommend_companies(
                 resume, role, location, company_size, include_remote,
+                radius_miles=radius_miles, prioritize_growth=prioritize_growth,
+                prioritize_stability=prioritize_stability,
                 angle=angle, already_seen=already_seen, count=count,
             )
         except Exception as e:
@@ -325,6 +353,9 @@ def build_shortlist(
     location: str,
     company_size: str,
     include_remote: bool,
+    radius_miles: int = LOCAL_RADIUS_MILES,
+    prioritize_growth: bool = True,
+    prioritize_stability: bool = True,
     recipient_email: str = DEFAULT_RECIPIENT_EMAIL,
     user_id: str = None,
 ) -> list:
@@ -334,6 +365,10 @@ def build_shortlist(
     as found, then rank by fit and email a digest. Observe/Think/Act/Check
     loop, capped at MAX_TOOL_CALLS — expected to need only 1-2 calls since
     a single recommend_companies() call already targets ~TARGET_COUNT.
+
+    radius_miles/prioritize_growth/prioritize_stability (see
+    candidates_search_options.sql) are per-search customizations that are
+    also part of the scope key, threaded through to every helper below.
 
     user_id is set when the request carried a verified Supabase session
     (Phase 2 of the accounts rollout) -- scoping and row ownership then
@@ -346,7 +381,10 @@ def build_shortlist(
     claude = Anthropic(api_key=anthropic_key, timeout=600.0)
     supabase = get_supabase_client()
 
-    existing = _fetch_existing_candidates(supabase, recipient_email, role, location, company_size, include_remote, user_id)
+    existing = _fetch_existing_candidates(
+        supabase, recipient_email, role, location, company_size, include_remote,
+        radius_miles, prioritize_growth, prioritize_stability, user_id,
+    )
     seen_keys = {_dedupe_key(row["company_name"]) for row in existing}
     all_saved = list(existing)
 
@@ -392,14 +430,20 @@ def build_shortlist(
                 location,
                 company_size,
                 include_remote,
-                angle=angle,
-                already_seen=already_seen_names,
+                angle,
+                already_seen_names,
+                radius_miles=radius_miles,
+                prioritize_growth=prioritize_growth,
+                prioritize_stability=prioritize_stability,
             )
         except Exception as e:
             print(f"[iteration {iteration}] error: CompanyRecommender call failed after retries ({e})", flush=True)
             companies = []
 
-        new_rows = _save_new_candidates(supabase, companies, seen_keys, recipient_email, role, location, company_size, include_remote, resume, user_id)
+        new_rows = _save_new_candidates(
+            supabase, companies, seen_keys, recipient_email, role, location, company_size, include_remote,
+            radius_miles, prioritize_growth, prioritize_stability, resume, user_id,
+        )
         all_saved.extend(new_rows)
         print(
             f"[iteration {iteration}] act: CompanyRecommender returned {len(companies)} "
@@ -458,7 +502,18 @@ def build_shortlist(
 REJECT_CAP = 5
 
 
-def get_rejected_count(supabase, email: str, role: str, location: str, company_size: str, include_remote: bool, user_id: str = None) -> int:
+def get_rejected_count(
+    supabase,
+    email: str,
+    role: str,
+    location: str,
+    company_size: str,
+    include_remote: bool,
+    radius_miles: int = LOCAL_RADIUS_MILES,
+    prioritize_growth: bool = True,
+    prioritize_stability: bool = True,
+    user_id: str = None,
+) -> int:
     query = supabase.table("candidates").select("id", count="exact")
     query = query.eq("user_id", user_id) if user_id else query.eq("email", email)
     response = (
@@ -467,6 +522,9 @@ def get_rejected_count(supabase, email: str, role: str, location: str, company_s
         .eq("location", location)
         .eq("company_size", company_size)
         .eq("include_remote", include_remote)
+        .eq("radius_miles", radius_miles)
+        .eq("prioritize_growth", prioritize_growth)
+        .eq("prioritize_stability", prioritize_stability)
         .eq("rejected", True)
         .execute()
     )
@@ -501,7 +559,8 @@ def reject_candidate(candidate_id: str, user_id: str = None) -> dict:
         raise ValueError("Not authorized to reject this candidate.")
 
     rejected_count = get_rejected_count(
-        supabase, row["email"], row["role"], row["location"], row["company_size"], row["include_remote"], row.get("user_id")
+        supabase, row["email"], row["role"], row["location"], row["company_size"], row["include_remote"],
+        row["radius_miles"], row["prioritize_growth"], row["prioritize_stability"], row.get("user_id"),
     )
     if rejected_count >= REJECT_CAP:
         raise ValueError(f"Free plan limit reached — up to {REJECT_CAP} rejections per search.")
@@ -529,9 +588,13 @@ def build_replacement(row: dict) -> None:
         return
 
     user_id = row.get("user_id")
+    radius_miles = row["radius_miles"]
+    prioritize_growth = row["prioritize_growth"]
+    prioritize_stability = row["prioritize_stability"]
     supabase = get_supabase_client()
     existing = _fetch_existing_candidates(
-        supabase, row["email"], row["role"], row["location"], row["company_size"], row["include_remote"], user_id
+        supabase, row["email"], row["role"], row["location"], row["company_size"], row["include_remote"],
+        radius_miles, prioritize_growth, prioritize_stability, user_id,
     )
     seen_keys = {_dedupe_key(r["company_name"]) for r in existing}
     already_seen_names = [r["company_name"] for r in existing]
@@ -539,7 +602,9 @@ def build_replacement(row: dict) -> None:
     try:
         companies = _recommend_with_retry(
             resume, row["role"], row["location"], row["company_size"], row["include_remote"],
-            angle=None, already_seen=already_seen_names, count=1,
+            None, already_seen_names,
+            radius_miles=radius_miles, prioritize_growth=prioritize_growth, prioritize_stability=prioritize_stability,
+            count=1,
         )
     except Exception as e:
         print(f"[reject] replacement search failed for candidate {row['id']}: {e}", flush=True)
@@ -547,7 +612,8 @@ def build_replacement(row: dict) -> None:
 
     new_rows = _save_new_candidates(
         supabase, companies, seen_keys, row["email"], row["role"], row["location"],
-        row["company_size"], row["include_remote"], resume, user_id,
+        row["company_size"], row["include_remote"], radius_miles, prioritize_growth, prioritize_stability,
+        resume, user_id,
     )
     if not new_rows:
         print(f"[reject] replacement search for candidate {row['id']} found no new unique company", flush=True)

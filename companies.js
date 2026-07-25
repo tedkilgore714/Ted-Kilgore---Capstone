@@ -104,7 +104,10 @@ function dedupeByCompanyName(candidates) {
 }
 
 function scopeKey(c) {
-  return [c.email, c.role, c.location, c.company_size, c.include_remote].join('|');
+  return [
+    c.email, c.role, c.location, c.company_size, c.include_remote,
+    c.radius_miles, c.prioritize_growth, c.prioritize_stability,
+  ].join('|');
 }
 
 function lastTouched(c) {
@@ -134,6 +137,17 @@ function describeScope(scope) {
   const parts = [scope.role, scope.location, scope.company_size];
   let text = `Showing: ${parts.join(' — ')}`;
   if (scope.include_remote) text += ' (+ remote-friendly)';
+
+  // Advanced options only get called out when they differ from the
+  // defaults (25 miles, both prioritized) -- keeps the common case's
+  // label exactly as short as it's always been.
+  const advancedNotes = [];
+  if (scope.radius_miles === 0) advancedNotes.push('any distance');
+  else if (scope.radius_miles !== undefined && scope.radius_miles !== 25) advancedNotes.push(`${scope.radius_miles}mi radius`);
+  if (scope.prioritize_growth === false) advancedNotes.push('no growth preference');
+  if (scope.prioritize_stability === false) advancedNotes.push('relaxed leadership-stability filter');
+  if (advancedNotes.length) text += ` (${advancedNotes.join(', ')})`;
+
   return text;
 }
 
@@ -244,6 +258,9 @@ shortlistForm.addEventListener('submit', async (event) => {
     location: document.getElementById('shortlist-location').value,
     company_size: document.getElementById('shortlist-size').value,
     include_remote: document.getElementById('shortlist-remote').checked,
+    radius_miles: Number(document.getElementById('shortlist-radius').value),
+    prioritize_growth: document.getElementById('shortlist-growth').checked,
+    prioritize_stability: document.getElementById('shortlist-stability').checked,
   };
 
   try {
@@ -264,6 +281,12 @@ shortlistForm.addEventListener('submit', async (event) => {
 });
 
 document.getElementById('refresh-companies').addEventListener('click', loadCompanies);
+
+const advancedToggle = document.getElementById('advanced-toggle');
+const advancedOptions = document.getElementById('advanced-options');
+advancedToggle.addEventListener('click', () => {
+  advancedOptions.hidden = !advancedOptions.hidden;
+});
 
 // Prefill the location field from the browser's geolocation, so someone
 // searching from where they already live doesn't have to type it --

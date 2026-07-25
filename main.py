@@ -95,16 +95,34 @@ class ShortlistRequest(BaseModel):
     location: str
     company_size: str
     include_remote: bool
+    radius_miles: int = LOCAL_RADIUS_MILES
+    prioritize_growth: bool = True
+    prioritize_stability: bool = True
     email: str = None  # legacy fallback only -- signed-in requests carry no email, see /shortlist
 
 
-def _run_shortlist_job(resume: str, role: str, location: str, company_size: str, include_remote: bool, email: str, user_id: str = None) -> None:
+def _run_shortlist_job(
+    resume: str,
+    role: str,
+    location: str,
+    company_size: str,
+    include_remote: bool,
+    radius_miles: int,
+    prioritize_growth: bool,
+    prioritize_stability: bool,
+    email: str,
+    user_id: str = None,
+) -> None:
     """Runs in the background after /shortlist responds. Errors are logged
     server-side (visible in Render logs) rather than raised — the client
     already got its "started" response, and a failure here just means the
     digest email won't arrive."""
     try:
-        build_shortlist(resume, role, location, company_size, include_remote, email, user_id=user_id)
+        build_shortlist(
+            resume, role, location, company_size, include_remote,
+            radius_miles, prioritize_growth, prioritize_stability,
+            recipient_email=email, user_id=user_id,
+        )
     except Exception as e:
         print(f"[/shortlist background job] failed: {e}", flush=True)
 
@@ -119,6 +137,9 @@ def shortlist(request: ShortlistRequest, background_tasks: BackgroundTasks, user
         request.location,
         request.company_size,
         request.include_remote,
+        request.radius_miles,
+        request.prioritize_growth,
+        request.prioritize_stability,
         recipient_email,
         user["id"],
     )
@@ -134,6 +155,9 @@ def candidates(
     location: str = None,
     company_size: str = None,
     include_remote: bool = None,
+    radius_miles: int = None,
+    prioritize_growth: bool = None,
+    prioritize_stability: bool = None,
     user: dict = Depends(require_user),
 ):
     supabase = get_supabase_client()
@@ -146,6 +170,12 @@ def candidates(
         query = query.eq("company_size", company_size)
     if include_remote is not None:
         query = query.eq("include_remote", include_remote)
+    if radius_miles is not None:
+        query = query.eq("radius_miles", radius_miles)
+    if prioritize_growth is not None:
+        query = query.eq("prioritize_growth", prioritize_growth)
+    if prioritize_stability is not None:
+        query = query.eq("prioritize_stability", prioritize_stability)
     response = query.order("role").order("location").order("rank").execute()
     return response.data or []
 
