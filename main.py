@@ -26,8 +26,7 @@ def get_current_user(authorization: str = Header(None)) -> dict | None:
     """Validates a bearer token against Supabase's Auth server directly
     (supabase-py's auth.get_user) rather than adding a JWT-decoding
     dependency -- fine at this traffic level. Returns None (not an error)
-    when no/invalid Authorization is given -- used as-is by /candidates-demo
-    and /shortlist-demo below, which stay unauthenticated on purpose.
+    when no/invalid Authorization is given.
     """
     if not authorization or not authorization.startswith("Bearer "):
         return None
@@ -45,9 +44,7 @@ def require_user(user: dict | None = Depends(get_current_user)) -> dict:
     """Phase 5 of the real-per-user-accounts rollout: Authorization is now
     required on the customer-facing endpoints below -- the Phase 2 dual-path
     fallback (unauthenticated requests keyed by a client-supplied email) is
-    gone. /candidates-demo and /shortlist-demo intentionally don't use this
-    and will start 401ing on their unauthenticated fetches; they're
-    internal/legacy demo routes, not the real site."""
+    gone."""
     if user is None:
         raise HTTPException(status_code=401, detail="Sign in required.")
     return user
@@ -128,6 +125,10 @@ def _run_shortlist_job(
 
 
 @app.post("/shortlist")
+# Now identity-gated (require_user), which makes per-user rate limiting
+# tractable if abuse becomes a problem -- not implemented yet, just noting
+# it's the natural next step now that a request can no longer hide behind
+# an arbitrary client-supplied email.
 def shortlist(request: ShortlistRequest, background_tasks: BackgroundTasks, user: dict = Depends(require_user)):
     recipient_email = user["email"]
     background_tasks.add_task(
@@ -145,7 +146,7 @@ def shortlist(request: ShortlistRequest, background_tasks: BackgroundTasks, user
     )
     return {
         "status": "started",
-        "message": f"Shortlist search started — this takes about 5-10 minutes. Results will be emailed to {recipient_email} when it's done, or view /candidates-demo.",
+        "message": f"Shortlist search started — this takes about 5-10 minutes. Results will be emailed to {recipient_email} when it's done, or refresh this page.",
     }
 
 
@@ -605,286 +606,3 @@ document.getElementById("submit-btn").addEventListener("click", async () => {{
 @app.get("/recommend-demo", response_class=HTMLResponse)
 def recommend_demo():
     return RECOMMEND_DEMO_HTML
-
-
-SHORTLIST_DEMO_HTML = f"""<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>AI Job Scout — Shortlist Agent</title>
-<style>
-  :root {{ color-scheme: light dark; }}
-  body {{
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    max-width: 700px;
-    margin: 2rem auto;
-    padding: 0 1.5rem;
-    line-height: 1.5;
-  }}
-  h1 {{ font-size: 1.5rem; }}
-  label {{ display: block; font-weight: 600; margin-top: 1rem; margin-bottom: 0.25rem; }}
-  textarea, input, select {{
-    width: 100%;
-    box-sizing: border-box;
-    padding: 0.5rem;
-    font-family: inherit;
-    font-size: 1rem;
-    border: 1px solid #999;
-    border-radius: 6px;
-    background: Field;
-    color: FieldText;
-  }}
-  textarea {{ min-height: 140px; resize: vertical; }}
-  .checkbox-row {{
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-top: 1rem;
-  }}
-  .checkbox-row input {{ width: auto; }}
-  .checkbox-row label {{ font-weight: 400; margin: 0; }}
-  button {{
-    margin-top: 1.25rem;
-    padding: 0.65rem 1.25rem;
-    font-size: 1rem;
-    font-weight: 600;
-    border: none;
-    border-radius: 6px;
-    background: #2563eb;
-    color: white;
-    cursor: pointer;
-  }}
-  button:disabled {{ opacity: 0.6; cursor: not-allowed; }}
-  #status {{ margin-top: 1rem; font-style: italic; }}
-  a.results-link {{ display: inline-block; margin-top: 1rem; }}
-</style>
-</head>
-<body>
-  <h1>AI Job Scout — Shortlist Agent</h1>
-  <p>Builds a 10-company shortlist, saves it, and emails you a digest when done. Takes about 5-10 minutes — no need to keep this tab open.</p>
-
-  <label for="resume">Resume</label>
-  <textarea id="resume" placeholder="Paste your resume here..."></textarea>
-
-  <label for="email">Email</label>
-  <input id="email" type="email" placeholder="you@example.com">
-  <p style="font-size:0.85rem;color:#666;margin:0.25rem 0 0;">Your shortlist digest gets sent here when the search finishes.</p>
-
-  <label for="role">Target role</label>
-  <input id="role" type="text" placeholder="e.g. Director of Professional Services">
-
-  <label for="location">Location</label>
-  <input id="location" type="text" placeholder="e.g. Austin, TX">
-  <div class="checkbox-row">
-    <input id="include-remote" type="checkbox">
-    <label for="include-remote">Include remote-friendly companies (in addition to companies with a local office within {LOCAL_RADIUS_MILES} miles)</label>
-  </div>
-
-  <label for="company-size">Preferred company size</label>
-  <select id="company-size">
-{_COMPANY_SIZE_OPTIONS_HTML}
-  </select>
-
-  <button id="submit-btn">Start shortlist search →</button>
-  <div id="status"></div>
-
-<script>
-document.getElementById("submit-btn").addEventListener("click", async () => {{
-  const resume = document.getElementById("resume").value;
-  const email = document.getElementById("email").value;
-  const role = document.getElementById("role").value;
-  const location = document.getElementById("location").value;
-  const companySize = document.getElementById("company-size").value;
-  const includeRemote = document.getElementById("include-remote").checked;
-
-  const statusEl = document.getElementById("status");
-  const btn = document.getElementById("submit-btn");
-
-  statusEl.innerHTML = "Starting...";
-  btn.disabled = true;
-
-  try {{
-    const response = await fetch("/shortlist", {{
-      method: "POST",
-      headers: {{ "Content-Type": "application/json" }},
-      body: JSON.stringify({{
-        resume, email, role, location,
-        company_size: companySize,
-        include_remote: includeRemote,
-      }}),
-    }});
-
-    if (!response.ok) {{
-      const err = await response.json().catch(() => ({{}}));
-      throw new Error(err.detail || `Request failed (${{response.status}})`);
-    }}
-
-    const result = await response.json();
-    statusEl.innerHTML = `${{result.message}} <a class="results-link" href="/candidates-demo">View saved candidates →</a>`;
-  }} catch (err) {{
-    statusEl.textContent = `Error: ${{err.message}}`;
-    btn.disabled = false;
-  }}
-}});
-</script>
-</body>
-</html>
-"""
-
-
-@app.get("/shortlist-demo", response_class=HTMLResponse)
-def shortlist_demo():
-    return SHORTLIST_DEMO_HTML
-
-
-CANDIDATES_DEMO_HTML = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>AI Job Scout — Saved Candidates</title>
-<style>
-  :root { color-scheme: light dark; }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    max-width: 900px;
-    margin: 2rem auto;
-    padding: 0 1.5rem;
-    line-height: 1.5;
-  }
-  h1 { font-size: 1.5rem; }
-  label { display: block; font-weight: 600; margin-top: 1rem; margin-bottom: 0.25rem; }
-  select {
-    width: 100%;
-    box-sizing: border-box;
-    padding: 0.5rem;
-    font-family: inherit;
-    font-size: 1rem;
-    border: 1px solid #999;
-    border-radius: 6px;
-    background: Field;
-    color: FieldText;
-  }
-  #status { margin-top: 1rem; font-style: italic; }
-  #results {
-    margin-top: 2rem;
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 1rem;
-  }
-  @media (max-width: 600px) {
-    #results { grid-template-columns: 1fr; }
-  }
-  .card {
-    border: 1px solid #ccc;
-    border-radius: 8px;
-    padding: 1rem;
-    min-width: 0;
-    overflow-wrap: break-word;
-  }
-  .card h3 { margin: 0 0 0.5rem; overflow-wrap: break-word; }
-  .card dl { margin: 0; }
-  .card dt { font-weight: 600; font-size: 0.85rem; margin-top: 0.5rem; }
-  .card dd { margin: 0; overflow-wrap: anywhere; word-break: break-word; }
-  .missing { color: #888; font-style: italic; }
-</style>
-</head>
-<body>
-  <h1>AI Job Scout — Saved Candidates</h1>
-
-  <label for="search-picker">Search</label>
-  <select id="search-picker"></select>
-
-  <div id="status">Loading...</div>
-  <div id="results"></div>
-
-<script>
-const NOT_ENOUGH_EVIDENCE = "— not enough evidence to say —";
-
-function field(value) {
-  return (value === null || value === undefined || value === "")
-    ? NOT_ENOUGH_EVIDENCE
-    : value;
-}
-
-function searchKey(c) {
-  return JSON.stringify([c.role, c.location, c.company_size, c.include_remote]);
-}
-
-function searchLabel(c) {
-  const remote = c.include_remote ? "+ remote-friendly" : "local only";
-  return `${c.role} — ${c.location} — ${c.company_size} (${remote})`;
-}
-
-function renderCard(company) {
-  const card = document.createElement("div");
-  card.className = "card";
-  card.innerHTML = `
-    <h3>${field(company.rank)}. ${field(company.company_name)}</h3>
-    <dl>
-      <dt>Size Estimate</dt>
-      <dd>${field(company.size_estimate)}</dd>
-      <dt>Location Match</dt>
-      <dd>${field(company.location_match)}</dd>
-      <dt>Growth / Leadership Note</dt>
-      <dd>${field(company.growth_note)}</dd>
-      <dt>Fit Rationale</dt>
-      <dd>${field(company.fit_rationale)}</dd>
-    </dl>
-  `;
-  return card;
-}
-
-let allCandidates = [];
-
-function renderSelectedSearch() {
-  const picker = document.getElementById("search-picker");
-  const resultsEl = document.getElementById("results");
-  const selected = picker.value;
-  resultsEl.innerHTML = "";
-  allCandidates
-    .filter((c) => searchKey(c) === selected)
-    .forEach((c) => resultsEl.appendChild(renderCard(c)));
-}
-
-(async () => {
-  const statusEl = document.getElementById("status");
-  const picker = document.getElementById("search-picker");
-
-  try {
-    const response = await fetch("/candidates");
-    if (!response.ok) throw new Error(`Request failed (${response.status})`);
-    allCandidates = await response.json();
-
-    if (allCandidates.length === 0) {
-      statusEl.textContent = "No candidates saved yet — run a search at /shortlist-demo first.";
-      picker.style.display = "none";
-      return;
-    }
-
-    const seen = new Set();
-    for (const c of allCandidates) {
-      const key = searchKey(c);
-      if (seen.has(key)) continue;
-      seen.add(key);
-      const option = document.createElement("option");
-      option.value = key;
-      option.textContent = searchLabel(c);
-      picker.appendChild(option);
-    }
-
-    statusEl.textContent = "";
-    picker.addEventListener("change", renderSelectedSearch);
-    renderSelectedSearch();
-  } catch (err) {
-    statusEl.textContent = `Error: ${err.message}`;
-  }
-})();
-</script>
-</body>
-</html>
-"""
-
-
-@app.get("/candidates-demo", response_class=HTMLResponse)
-def candidates_demo():
-    return CANDIDATES_DEMO_HTML
