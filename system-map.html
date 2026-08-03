@@ -1,0 +1,893 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>System Map &mdash; AI Job Scout</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="stylesheet" href="style.css" />
+  <link rel="icon" type="image/png" href="favicon.png" />
+  <style>
+    #system-map-panel {
+      --ink: #0b1420;
+      --surface: #121e2d;
+      --surface-2: #17263a;
+      --line: #28394d;
+      --text: #e6ecf3;
+      --text-dim: #8fa3ba;
+      --text-faint: #5c7690;
+      --circuit: #37c6d9;
+      --circuit-dim: #1d5f6a;
+
+      --pages: #5aa9e6;
+      --api: #7b86ee;
+      --agent: #a978e8;
+      --ext: #e0a458;
+      --data: #45bfa6;
+      --cron: #e0698f;
+
+      --radius: 10px;
+      --mono: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Menlo, Consolas, monospace;
+      --sans: "Avenir Next", "Century Gothic", "Segoe UI", system-ui, -apple-system, sans-serif;
+      --body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+      display: block;
+      background: var(--ink);
+      color: var(--text);
+      font-family: var(--body);
+      -webkit-font-smoothing: antialiased;
+      line-height: 1.45;
+      border-radius: 14px;
+      margin: 0 0 40px;
+    }
+
+    @media (prefers-color-scheme: light) {
+      #system-map-panel {
+        --ink: #f4f6f9;
+        --surface: #ffffff;
+        --surface-2: #eef1f6;
+        --line: #d8dee7;
+        --text: #141c27;
+        --text-dim: #5b6b7f;
+        --text-faint: #93a1b3;
+        --circuit: #0e8fa0;
+        --circuit-dim: #bfe9ee;
+
+        --pages: #2e7bc4;
+        --api: #5560d6;
+        --agent: #8148c9;
+        --ext: #b87424;
+        --data: #1e9c82;
+        --cron: #c13e68;
+      }
+    }
+
+    #system-map-panel * { box-sizing: border-box; }
+    #system-map-panel a { color: inherit; }
+    #system-map-panel :focus-visible { outline: 2px solid var(--circuit); outline-offset: 2px; }
+
+    #system-map-panel .wrap {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 40px 28px 64px;
+    }
+
+    /* ---------- header ---------- */
+    #system-map-panel header.top {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      padding-bottom: 28px;
+      margin-bottom: 34px;
+      border-bottom: 1px solid var(--line);
+    }
+    #system-map-panel .eyebrow {
+      font-family: var(--mono);
+      font-size: 11.5px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--circuit);
+    }
+    #system-map-panel h1.title {
+      font-family: var(--sans);
+      font-weight: 700;
+      font-size: clamp(28px, 4vw, 42px);
+      letter-spacing: -0.01em;
+      margin: 0;
+      text-wrap: balance;
+    }
+    #system-map-panel .title-accent {
+      color: var(--circuit);
+    }
+    #system-map-panel p.dek {
+      max-width: 62ch;
+      color: var(--text-dim);
+      font-size: 15px;
+      margin: 0;
+    }
+    #system-map-panel p.dek code {
+      font-family: var(--mono);
+      font-size: 0.92em;
+      background: var(--surface-2);
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 0.05em 0.4em;
+    }
+
+    #system-map-panel .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 22px;
+      align-items: center;
+      margin-top: 4px;
+    }
+    #system-map-panel .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-family: var(--mono);
+      font-size: 11.5px;
+      color: var(--text-dim);
+    }
+    #system-map-panel .swatch {
+      width: 10px; height: 10px;
+      border-radius: 2px;
+      flex: none;
+    }
+    #system-map-panel .legend-note {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-family: var(--mono);
+      font-size: 11.5px;
+      color: var(--text-dim);
+    }
+    #system-map-panel .badge-demo {
+      font-family: var(--mono);
+      font-size: 9.5px;
+      letter-spacing: 0.08em;
+      color: var(--text-faint);
+      border: 1px dashed var(--text-faint);
+      border-radius: 4px;
+      padding: 1px 5px;
+    }
+
+    /* ---------- lanes ---------- */
+    #system-map-panel .lane {
+      display: grid;
+      grid-template-columns: 168px 1fr;
+      gap: 22px;
+      padding: 26px 0;
+      border-bottom: 1px solid var(--line);
+    }
+    #system-map-panel .lane:last-of-type { border-bottom: none; }
+
+    #system-map-panel .lane-head { position: sticky; top: 20px; align-self: start; }
+    #system-map-panel .lane-tag {
+      display: inline-block;
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      padding: 2px 7px;
+      border-radius: 4px;
+      margin-bottom: 8px;
+      color: var(--ink);
+      font-weight: 700;
+    }
+    #system-map-panel .lane-head h2 {
+      font-family: var(--sans);
+      font-size: 17px;
+      margin: 0 0 4px;
+      letter-spacing: -0.005em;
+    }
+    #system-map-panel .lane-head p {
+      font-size: 12.5px;
+      color: var(--text-dim);
+      margin: 0;
+      max-width: 22ch;
+    }
+
+    #system-map-panel .lane-cards {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-content: flex-start;
+    }
+
+    #system-map-panel .card {
+      scroll-margin-top: 24px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 12px 14px 13px;
+      width: 232px;
+      flex: 0 0 auto;
+      transition: border-color 0.15s ease, transform 0.15s ease;
+    }
+    #system-map-panel .card:target,
+    #system-map-panel .card:hover {
+      border-color: var(--card-accent, var(--circuit));
+      transform: translateY(-1px);
+    }
+    #system-map-panel .card-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 7px;
+    }
+    #system-map-panel .card-code {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      color: var(--card-accent, var(--text-dim));
+    }
+    #system-map-panel .card-flags {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    #system-map-panel .lock {
+      width: 11px; height: 11px;
+      color: var(--text-faint);
+      flex: none;
+    }
+    #system-map-panel .legacy-tag {
+      font-family: var(--mono);
+      font-size: 9px;
+      letter-spacing: 0.08em;
+      color: var(--text-faint);
+      border: 1px dashed var(--line);
+      border-radius: 3px;
+      padding: 1px 4px;
+    }
+    #system-map-panel .card h3 {
+      font-family: var(--sans);
+      font-size: 14.5px;
+      font-weight: 600;
+      margin: 0 0 4px;
+      letter-spacing: -0.005em;
+    }
+    #system-map-panel .card h3 code {
+      font-family: var(--mono);
+      font-size: 0.86em;
+      font-weight: 500;
+    }
+    #system-map-panel .card p {
+      font-size: 12px;
+      color: var(--text-dim);
+      margin: 0;
+    }
+    #system-map-panel .card.legacy {
+      border-style: dashed;
+      opacity: 0.72;
+    }
+
+    #system-map-panel .skills {
+      list-style: none;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin: 9px 0 0;
+      padding: 9px 0 0;
+      border-top: 1px dashed var(--line);
+    }
+    #system-map-panel .skills li {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--text-dim);
+      background: var(--surface-2);
+      border-radius: 4px;
+      padding: 2px 6px;
+    }
+
+    #system-map-panel .cols {
+      list-style: none;
+      margin: 9px 0 0;
+      padding: 9px 0 0;
+      border-top: 1px dashed var(--line);
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    #system-map-panel .cols li {
+      font-family: var(--mono);
+      font-size: 10.5px;
+      color: var(--text-dim);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    #system-map-panel .cols li b { color: var(--text); font-weight: 600; }
+
+    /* category color assignment */
+    #system-map-panel .lane--cron  .lane-tag { background: var(--cron); }
+    #system-map-panel .lane--pages .lane-tag { background: var(--pages); }
+    #system-map-panel .lane--api   .lane-tag { background: var(--api); }
+    #system-map-panel .lane--agent .lane-tag { background: var(--agent); }
+    #system-map-panel .lane--ext   .lane-tag { background: var(--ext); }
+    #system-map-panel .lane--data  .lane-tag { background: var(--data); }
+
+    #system-map-panel .card--cron  { --card-accent: var(--cron); }
+    #system-map-panel .card--pages { --card-accent: var(--pages); }
+    #system-map-panel .card--api   { --card-accent: var(--api); }
+    #system-map-panel .card--agent { --card-accent: var(--agent); }
+    #system-map-panel .card--ext   { --card-accent: var(--ext); }
+    #system-map-panel .card--data  { --card-accent: var(--data); }
+
+    /* ---------- flows ---------- */
+    #system-map-panel .flows {
+      margin-top: 44px;
+    }
+    #system-map-panel .flows > h2 {
+      font-family: var(--sans);
+      font-size: 20px;
+      margin: 0 0 4px;
+    }
+    #system-map-panel .flows > p {
+      font-size: 13px;
+      color: var(--text-dim);
+      margin: 0 0 22px;
+      max-width: 64ch;
+    }
+    #system-map-panel .flow-row {
+      display: grid;
+      grid-template-columns: 168px 1fr;
+      gap: 22px;
+      padding: 15px 0;
+      border-top: 1px solid var(--line);
+    }
+    #system-map-panel .flow-meta { display: flex; gap: 10px; align-items: baseline; }
+    #system-map-panel .flow-num {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--circuit);
+      font-variant-numeric: tabular-nums;
+    }
+    #system-map-panel .flow-meta h3 {
+      font-family: var(--sans);
+      font-size: 14px;
+      font-weight: 600;
+      margin: 0;
+    }
+    #system-map-panel .flow-chain {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--mono);
+      font-size: 12px;
+    }
+    #system-map-panel .chip {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 5px;
+      border: 1px solid var(--line);
+      background: var(--surface);
+      color: var(--text);
+      text-decoration: none;
+      transition: border-color 0.12s ease, background 0.12s ease;
+    }
+    #system-map-panel .chip:hover { border-color: var(--chip-accent, var(--circuit)); background: var(--surface-2); }
+    #system-map-panel .chip--pages { --chip-accent: var(--pages); }
+    #system-map-panel .chip--api   { --chip-accent: var(--api); }
+    #system-map-panel .chip--agent { --chip-accent: var(--agent); }
+    #system-map-panel .chip--ext   { --chip-accent: var(--ext); }
+    #system-map-panel .chip--data  { --chip-accent: var(--data); }
+    #system-map-panel .chip--cron  { --chip-accent: var(--cron); }
+    #system-map-panel .arrow { color: var(--text-faint); }
+    #system-map-panel .plus { color: var(--text-faint); font-size: 11px; }
+    #system-map-panel .flow-note {
+      flex-basis: 100%;
+      font-family: var(--body);
+      font-size: 11.5px;
+      color: var(--text-faint);
+      margin-top: 2px;
+    }
+
+    #system-map-panel footer.foot {
+      margin-top: 48px;
+      padding-top: 20px;
+      border-top: 1px solid var(--line);
+      font-size: 11.5px;
+      color: var(--text-faint);
+      font-family: var(--mono);
+    }
+
+    @media (max-width: 780px) {
+      #system-map-panel .lane, #system-map-panel .flow-row { grid-template-columns: 1fr; gap: 10px; }
+      #system-map-panel .lane-head { position: static; }
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <a class="brand" href="index.html">
+        <img class="logo-icon" src="New_JS_Logo_Full.png" alt="AI Job Scout" />
+      </a>
+      <nav class="site-nav">
+        <a href="index.html" data-label="Home">Home</a>
+        <a href="how-it-works.html" data-label="How It Works">How It Works</a>
+        <a href="companies.html" data-label="My Companies">My Companies</a>
+        <a href="openings.html" data-label="My Openings">My Openings</a>
+        <a href="about.html" data-label="About">About</a>
+        <a href="contact.html" data-label="Contact">Contact</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="container container--wide">
+      <section id="gate-panel">
+        <p class="page-intro">Sign in as admin to view the system map.</p>
+        <a class="btn" href="admin.html">Go to admin sign-in &rarr;</a>
+      </section>
+
+      <div id="map-content" hidden>
+        <div id="system-map-panel">
+          <svg width="0" height="0" style="position:absolute">
+            <symbol id="ic-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="4.5" y="11" width="15" height="10" rx="2"></rect>
+              <path d="M8 11V7a4 4 0 0 1 8 0v4"></path>
+            </symbol>
+          </svg>
+
+          <div class="wrap">
+
+            <header class="top">
+              <span class="eyebrow">System map &middot; internal reference</span>
+              <h1 class="title">AI Job Scout <span class="title-accent">&mdash; logic flow</span></h1>
+              <p class="dek">
+                Every page, API route, agent, external service and database table in the
+                live system, plus the concrete paths data takes through them &mdash;
+                current as of <code>v5</code> (customizable search criteria + Phase 6 cleanup).
+                Dashed cards are legacy routes still deployed but not linked from the live site.
+              </p>
+              <div class="legend">
+                <span class="legend-item"><span class="swatch" style="background:var(--cron)"></span>Automation</span>
+                <span class="legend-item"><span class="swatch" style="background:var(--pages)"></span>Pages</span>
+                <span class="legend-item"><span class="swatch" style="background:var(--api)"></span>Backend API</span>
+                <span class="legend-item"><span class="swatch" style="background:var(--agent)"></span>Agents</span>
+                <span class="legend-item"><span class="swatch" style="background:var(--ext)"></span>External services</span>
+                <span class="legend-item"><span class="swatch" style="background:var(--data)"></span>Data</span>
+                <span class="legend-note"><svg class="lock"><use href="#ic-lock"/></svg>&nbsp;requires sign-in</span>
+                <span class="legend-note"><span class="badge-demo">dashed</span>&nbsp;legacy / unlinked</span>
+              </div>
+            </header>
+
+            <!-- ===================== AUTOMATION ===================== -->
+            <section class="lane lane--cron">
+              <div class="lane-head">
+                <span class="lane-tag">CRON</span>
+                <h2>Automation</h2>
+                <p>Runs on a schedule, outside the live request path</p>
+              </div>
+              <div class="lane-cards">
+                <article class="card card--cron" id="cr-01">
+                  <div class="card-top"><span class="card-code">CR-01</span></div>
+                  <h3>GitHub Actions</h3>
+                  <p>Cron trigger, Mondays 09:00 UTC &mdash; invokes Scout Agent directly, no HTTP request involved.</p>
+                </article>
+              </div>
+            </section>
+
+            <!-- ===================== PAGES ===================== -->
+            <section class="lane lane--pages">
+              <div class="lane-head">
+                <span class="lane-tag">PG</span>
+                <h2>Pages</h2>
+                <p>Static HTML, deployed on Vercel</p>
+              </div>
+              <div class="lane-cards">
+                <article class="card card--pages" id="pg-01">
+                  <div class="card-top"><span class="card-code">PG-01</span></div>
+                  <h3>index.html</h3>
+                  <p>Home &mdash; hero, value prop, CTA into the search flow.</p>
+                </article>
+                <article class="card card--pages" id="pg-02">
+                  <div class="card-top"><span class="card-code">PG-02</span></div>
+                  <h3>how&#8209;it&#8209;works.html</h3>
+                  <p>Product explainer, typed&#8209;text animation.</p>
+                </article>
+                <article class="card card--pages" id="pg-03">
+                  <div class="card-top"><span class="card-code">PG-03</span></div>
+                  <h3>about.html</h3>
+                  <p>Static marketing copy.</p>
+                </article>
+                <article class="card card--pages" id="pg-04">
+                  <div class="card-top"><span class="card-code">PG-04</span></div>
+                  <h3>contact.html</h3>
+                  <p>Form posts straight to <b style="color:var(--text)">leads</b> via the anon Supabase key &mdash; no backend involved.</p>
+                </article>
+                <article class="card card--pages" id="pg-05">
+                  <div class="card-top"><span class="card-code">PG-05</span></div>
+                  <h3>coming&#8209;soon.html</h3>
+                  <p>Placeholder for unshipped features.</p>
+                </article>
+                <article class="card card--pages" id="pg-06">
+                  <div class="card-top"><span class="card-code">PG-06</span></div>
+                  <h3>404.html</h3>
+                  <p>Not&#8209;found page.</p>
+                </article>
+                <article class="card card--pages" id="pg-07">
+                  <div class="card-top"><span class="card-code">PG-07</span></div>
+                  <h3>account.html</h3>
+                  <p>Magic&#8209;link sign in/out. Session is shared via <code>auth.js</code> across every customer page.</p>
+                </article>
+                <article class="card card--pages" id="pg-08">
+                  <div class="card-top">
+                    <span class="card-code">PG-08</span>
+                    <span class="card-flags"><svg class="lock"><use href="#ic-lock"/></svg></span>
+                  </div>
+                  <h3>companies.html</h3>
+                  <p>My Companies &mdash; resume + preferences form (incl. Advanced options), results grid, reject.</p>
+                </article>
+                <article class="card card--pages" id="pg-09">
+                  <div class="card-top">
+                    <span class="card-code">PG-09</span>
+                    <span class="card-flags"><svg class="lock"><use href="#ic-lock"/></svg></span>
+                  </div>
+                  <h3>openings.html</h3>
+                  <p>My Openings &mdash; manual Kanban board, drag/add/edit/delete, realtime sync.</p>
+                </article>
+                <article class="card card--pages" id="pg-10">
+                  <div class="card-top">
+                    <span class="card-code">PG-10</span>
+                    <span class="card-flags"><svg class="lock"><use href="#ic-lock"/></svg></span>
+                  </div>
+                  <h3>admin.html</h3>
+                  <p>Leads table view, checklist view, self&#8209;serve password reset, this system map.</p>
+                </article>
+              </div>
+            </section>
+
+            <!-- ===================== BACKEND API ===================== -->
+            <section class="lane lane--api">
+              <div class="lane-head">
+                <span class="lane-tag">API</span>
+                <h2>Backend API</h2>
+                <p><code style="font-family:var(--mono)">main.py</code> &middot; FastAPI on Render</p>
+              </div>
+              <div class="lane-cards">
+                <article class="card card--api" id="ep-01">
+                  <div class="card-top">
+                    <span class="card-code">EP-01</span>
+                    <span class="card-flags"><svg class="lock"><use href="#ic-lock"/></svg></span>
+                  </div>
+                  <h3><code>POST /shortlist</code></h3>
+                  <p>Requires a session. Kicks off the Shortlist Agent as a background task.</p>
+                </article>
+                <article class="card card--api" id="ep-02">
+                  <div class="card-top">
+                    <span class="card-code">EP-02</span>
+                    <span class="card-flags"><svg class="lock"><use href="#ic-lock"/></svg></span>
+                  </div>
+                  <h3><code>GET /candidates</code></h3>
+                  <p>Returns the signed&#8209;in user&rsquo;s saved companies only.</p>
+                </article>
+                <article class="card card--api" id="ep-03">
+                  <div class="card-top">
+                    <span class="card-code">EP-03</span>
+                    <span class="card-flags"><svg class="lock"><use href="#ic-lock"/></svg></span>
+                  </div>
+                  <h3><code>POST /reject</code></h3>
+                  <p>Marks a company rejected, enforces the free&#8209;tier cap, queues a replacement search.</p>
+                </article>
+                <article class="card card--api legacy" id="ep-04">
+                  <div class="card-top">
+                    <span class="card-code">EP-04</span>
+                    <span class="card-flags"><span class="legacy-tag">legacy</span></span>
+                  </div>
+                  <h3><code>POST /matcher</code></h3>
+                  <p>Live job&#8209;posting verification &mdash; calls Company Matcher directly, no auth, no persistence.</p>
+                </article>
+                <article class="card card--api legacy" id="ep-05">
+                  <div class="card-top">
+                    <span class="card-code">EP-05</span>
+                    <span class="card-flags"><span class="legacy-tag">legacy</span></span>
+                  </div>
+                  <h3><code>POST /recommend</code></h3>
+                  <p>One&#8209;shot call into Company Recommender, no auth, no persistence.</p>
+                </article>
+                <article class="card card--api legacy" id="ep-06">
+                  <div class="card-top">
+                    <span class="card-code">EP-06</span>
+                    <span class="card-flags"><span class="legacy-tag">legacy</span></span>
+                  </div>
+                  <h3><code>GET /demo</code> &middot; <code>/recommend&#8209;demo</code></h3>
+                  <p>Server&#8209;rendered test pages for EP&#8209;04/05, still reachable, not linked anywhere.</p>
+                </article>
+              </div>
+            </section>
+
+            <!-- ===================== AGENTS ===================== -->
+            <section class="lane lane--agent">
+              <div class="lane-head">
+                <span class="lane-tag">AGT</span>
+                <h2>Agents &amp; skills</h2>
+                <p>The reasoning layer &mdash; each card&rsquo;s tags are the tools it calls</p>
+              </div>
+              <div class="lane-cards">
+                <article class="card card--agent" id="ag-01" style="width:252px">
+                  <div class="card-top"><span class="card-code">AG-01</span></div>
+                  <h3>Shortlist Agent</h3>
+                  <p><code style="font-family:var(--mono)">shortlist_agent.py</code> &mdash; observe / think / act / check loop that drives a full search to completion.</p>
+                  <ul class="skills">
+                    <li>pick search angle</li>
+                    <li>dedupe by scope key</li>
+                    <li>retry w/ backoff</li>
+                    <li>rank by fit</li>
+                    <li>send digest email</li>
+                  </ul>
+                </article>
+                <article class="card card--agent" id="ag-02" style="width:252px">
+                  <div class="card-top"><span class="card-code">AG-02</span></div>
+                  <h3>Company Recommender</h3>
+                  <p><code style="font-family:var(--mono)">company_recommender.py</code> &mdash; the actual research step, one Claude tool&#8209;use loop per angle.</p>
+                  <ul class="skills">
+                    <li>web_search</li>
+                    <li>ATS&#8209;domain fallback</li>
+                    <li>jobs_url cache lookup</li>
+                    <li>JSON output schema</li>
+                  </ul>
+                </article>
+                <article class="card card--agent legacy" id="ag-03" style="width:252px">
+                  <div class="card-top">
+                    <span class="card-code">AG-03</span>
+                    <span class="card-flags"><span class="legacy-tag">legacy</span></span>
+                  </div>
+                  <h3>Company Matcher</h3>
+                  <p><code style="font-family:var(--mono)">company_matcher.py</code> &mdash; standalone, verifies a live posting exists before recommending. Not wired into AG&#8209;01.</p>
+                  <ul class="skills">
+                    <li>web_search</li>
+                    <li>live verification rounds</li>
+                  </ul>
+                </article>
+                <article class="card card--agent" id="ag-04" style="width:252px">
+                  <div class="card-top"><span class="card-code">AG-04</span></div>
+                  <h3>Scout Agent</h3>
+                  <p><code style="font-family:var(--mono)">scout_agent.py</code> &mdash; builds and sends the weekly digest on its own schedule, independent of the live API.</p>
+                  <ul class="skills">
+                    <li>digest compose</li>
+                    <li>Gmail send</li>
+                  </ul>
+                </article>
+              </div>
+            </section>
+
+            <!-- ===================== EXTERNAL ===================== -->
+            <section class="lane lane--ext">
+              <div class="lane-head">
+                <span class="lane-tag">EXT</span>
+                <h2>External services</h2>
+                <p>Everything the agents and auth flow depend on</p>
+              </div>
+              <div class="lane-cards">
+                <article class="card card--ext" id="ex-01">
+                  <div class="card-top"><span class="card-code">EX-01</span></div>
+                  <h3>Anthropic Claude</h3>
+                  <p>claude&#8209;sonnet&#8209;5 &mdash; reasoning, tool&#8209;use and ranking for every agent above.</p>
+                </article>
+                <article class="card card--ext" id="ex-02">
+                  <div class="card-top"><span class="card-code">EX-02</span></div>
+                  <h3>Exa</h3>
+                  <p>Web search backing AG&#8209;02 and AG&#8209;03&rsquo;s <code style="font-family:var(--mono)">web_search</code> tool.</p>
+                </article>
+                <article class="card card--ext" id="ex-03">
+                  <div class="card-top"><span class="card-code">EX-03</span></div>
+                  <h3>Composio &rarr; Gmail</h3>
+                  <p>Sends the shortlist digest (AG&#8209;01) and the weekly scout digest (AG&#8209;04).</p>
+                </article>
+                <article class="card card--ext" id="ex-04">
+                  <div class="card-top"><span class="card-code">EX-04</span></div>
+                  <h3>Resend (SMTP)</h3>
+                  <p>Delivers Supabase Auth email &mdash; magic links and password recovery, domain <code style="font-family:var(--mono)">ai&#8209;jobscout.com</code>.</p>
+                </article>
+              </div>
+            </section>
+
+            <!-- ===================== DATA ===================== -->
+            <section class="lane lane--data">
+              <div class="lane-head">
+                <span class="lane-tag">DB</span>
+                <h2>Data</h2>
+                <p>Supabase &mdash; Postgres, Auth, Realtime</p>
+              </div>
+              <div class="lane-cards">
+                <article class="card card--data" id="db-01" style="width:246px">
+                  <div class="card-top"><span class="card-code">DB-01</span></div>
+                  <h3>candidates</h3>
+                  <p>One row per recommended company. RLS: own rows only.</p>
+                  <ul class="cols">
+                    <li><b>user_id</b>, role, location, company_size</li>
+                    <li>include_remote, radius_miles</li>
+                    <li>prioritize_growth, prioritize_stability</li>
+                    <li>company_name, fit_rationale, rank, rejected</li>
+                  </ul>
+                </article>
+                <article class="card card--data" id="db-02" style="width:246px">
+                  <div class="card-top"><span class="card-code">DB-02</span></div>
+                  <h3>openings</h3>
+                  <p>Kanban rows, written directly by PG&#8209;09 &mdash; the API never touches this table.</p>
+                  <ul class="cols">
+                    <li><b>user_id</b>, title, company, status</li>
+                    <li>location, match_score, salary_range</li>
+                  </ul>
+                </article>
+                <article class="card card--data" id="db-03">
+                  <div class="card-top"><span class="card-code">DB-03</span></div>
+                  <h3>leads</h3>
+                  <p>Contact form submissions. Admin&#8209;only read.</p>
+                </article>
+                <article class="card card--data" id="db-04">
+                  <div class="card-top"><span class="card-code">DB-04</span></div>
+                  <h3>site_checklist</h3>
+                  <p>Internal build/QA tracker, rendered on PG&#8209;10.</p>
+                </article>
+                <article class="card card--data" id="db-05">
+                  <div class="card-top"><span class="card-code">DB-05</span></div>
+                  <h3>auth.users</h3>
+                  <p>Supabase Auth. Backs every session on PG&#8209;07/08/09/10.</p>
+                </article>
+                <article class="card card--data legacy" id="db-06">
+                  <div class="card-top">
+                    <span class="card-code">DB-06</span>
+                    <span class="card-flags"><span class="legacy-tag">orphaned</span></span>
+                  </div>
+                  <h3>target_companies</h3>
+                  <p>Static seed data. No write path, no longer read by any page.</p>
+                </article>
+              </div>
+            </section>
+
+            <!-- ===================== FLOWS ===================== -->
+            <section class="flows">
+              <h2>Flow sequences</h2>
+              <p>The same map, read as the paths data actually takes. Codes link back to the cards above.</p>
+
+              <div class="flow-row">
+                <div class="flow-meta"><span class="flow-num">01</span><h3>Sign in</h3></div>
+                <div class="flow-chain">
+                  <a class="chip chip--pages" href="#pg-07">PG-07</a><span class="arrow">&rarr;</span>
+                  <a class="chip chip--ext" href="#ex-04">EX-04</a><span class="arrow">&rarr;</span>
+                  <a class="chip chip--data" href="#db-05">DB-05</a><span class="arrow">&rarr;</span>
+                  <span class="chip" style="opacity:.6">session shared &mdash;</span>
+                  <a class="chip chip--pages" href="#pg-08">PG-08</a>
+                  <a class="chip chip--pages" href="#pg-09">PG-09</a>
+                  <a class="chip chip--pages" href="#pg-10">PG-10</a>
+                  <span class="flow-note">Verification is button&#8209;gated (not on page load) so an email scanner can&rsquo;t burn the one&#8209;time link before the real click.</span>
+                </div>
+              </div>
+
+              <div class="flow-row">
+                <div class="flow-meta"><span class="flow-num">02</span><h3>Run a shortlist search</h3></div>
+                <div class="flow-chain">
+                  <a class="chip chip--pages" href="#pg-08">PG-08</a><span class="arrow">&rarr;</span>
+                  <a class="chip chip--api" href="#ep-01">EP-01</a><span class="arrow">&rarr;</span>
+                  <a class="chip chip--agent" href="#ag-01">AG-01</a><span class="arrow">&rarr;</span>
+                  <a class="chip chip--agent" href="#ag-02">AG-02</a><span class="arrow">&rarr;</span>
+                  <a class="chip chip--ext" href="#ex-01">EX-01</a><span class="plus">+</span><a class="chip chip--ext" href="#ex-02">EX-02</a><span class="arrow">&rarr;</span>
+                  <a class="chip chip--data" href="#db-01">DB-01</a><span class="arrow">&rarr;</span>
+                  <a class="chip chip--ext" href="#ex-03">EX-03</a><span class="arrow">&rarr;</span>
+                  <a class="chip chip--pages" href="#pg-08">PG-08</a>
+                  <span class="flow-note">Loops until 10 unique companies are saved, then ranks, emails the digest, and the page re&#8209;polls <code style="font-family:var(--mono)">GET /candidates</code>.</span>
+                </div>
+              </div>
+
+              <div class="flow-row">
+                <div class="flow-meta"><span class="flow-num">03</span><h3>Reject &amp; replace</h3></div>
+                <div class="flow-chain">
+                  <a class="chip chip--pages" href="#pg-08">PG-08</a><span class="arrow">&rarr;</span>
+                  <a class="chip chip--api" href="#ep-03">EP-03</a><span class="arrow">&rarr;</span>
+                  <a class="chip chip--agent" href="#ag-01">AG-01</a><span class="arrow">&rarr;</span>
+                  <a class="chip chip--agent" href="#ag-02">AG-02</a>
+                  <span class="chip" style="opacity:.6">count=1</span><span class="arrow">&rarr;</span>
+                  <a class="chip chip--data" href="#db-01">DB-01</a>
+                  <span class="flow-note">Capped at 5 rejections per search scope; replacement inherits the original resume, role and Advanced options.</span>
+                </div>
+              </div>
+
+              <div class="flow-row">
+                <div class="flow-meta"><span class="flow-num">04</span><h3>Track an opening</h3></div>
+                <div class="flow-chain">
+                  <a class="chip chip--pages" href="#pg-09">PG-09</a><span class="arrow">&rarr;</span>
+                  <a class="chip chip--data" href="#db-02">DB-02</a>
+                  <span class="flow-note">Direct client&#8209;to&#8209;Supabase, no backend hop &mdash; RLS scopes rows, Realtime pushes changes back to every open tab.</span>
+                </div>
+              </div>
+
+              <div class="flow-row">
+                <div class="flow-meta"><span class="flow-num">05</span><h3>Contact form</h3></div>
+                <div class="flow-chain">
+                  <a class="chip chip--pages" href="#pg-04">PG-04</a><span class="arrow">&rarr;</span>
+                  <a class="chip chip--data" href="#db-03">DB-03</a>
+                  <span class="flow-note">Anon insert, no session required.</span>
+                </div>
+              </div>
+
+              <div class="flow-row">
+                <div class="flow-meta"><span class="flow-num">06</span><h3>Admin review</h3></div>
+                <div class="flow-chain">
+                  <a class="chip chip--pages" href="#pg-10">PG-10</a><span class="arrow">&rarr;</span>
+                  <a class="chip chip--data" href="#db-05">DB-05</a><span class="arrow">&rarr;</span>
+                  <a class="chip chip--data" href="#db-03">DB-03</a><span class="plus">+</span><a class="chip chip--data" href="#db-04">DB-04</a>
+                </div>
+              </div>
+
+              <div class="flow-row">
+                <div class="flow-meta"><span class="flow-num">07</span><h3>Weekly digest <span style="color:var(--text-faint);font-weight:400">(automated)</span></h3></div>
+                <div class="flow-chain">
+                  <a class="chip chip--cron" href="#cr-01">CR-01</a><span class="arrow">&rarr;</span>
+                  <a class="chip chip--agent" href="#ag-04">AG-04</a><span class="arrow">&rarr;</span>
+                  <a class="chip chip--ext" href="#ex-03">EX-03</a>
+                  <span class="flow-note">Fully decoupled from every page and from EP&#8209;01&ndash;03.</span>
+                </div>
+              </div>
+
+              <div class="flow-row">
+                <div class="flow-meta"><span class="flow-num">08</span><h3>Legacy matcher <span style="color:var(--text-faint);font-weight:400">(unlinked)</span></h3></div>
+                <div class="flow-chain">
+                  <a class="chip chip--api" href="#ep-04">EP-04</a><span class="arrow">&rarr;</span>
+                  <a class="chip chip--agent" href="#ag-03">AG-03</a>
+                  <span class="arrow" style="margin-left:14px">&middot;&middot;&middot;</span>
+                  <a class="chip chip--api" href="#ep-05">EP-05</a><span class="arrow">&rarr;</span>
+                  <a class="chip chip--agent" href="#ag-02">AG-02</a>
+                  <span class="flow-note">No page links here and neither path touches DB&#8209;01 &mdash; results are returned inline, never saved.</span>
+                </div>
+              </div>
+            </section>
+
+            <footer class="foot">
+              AI Job Scout &middot; system map &middot; generated from the repository at tag v5
+            </footer>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <nav class="footer-nav">
+        <a href="index.html">Home</a>
+        <a href="how-it-works.html">How It Works</a>
+        <a href="companies.html">My Companies</a>
+        <a href="openings.html">My Openings</a>
+        <a href="coming-soon.html">Coming Soon</a>
+        <a href="about.html">About</a>
+        <a href="contact.html">Contact</a>
+      </nav>
+      <p class="footer-note">&copy; 2026 AI Job Scout &mdash; researched company shortlists, straight from the source.</p>
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"></script>
+  <script src="config.js"></script>
+  <script>
+    // Same isolated storageKey as admin.html -- this recognizes an
+    // already-signed-in admin session without a second login, and keeps
+    // this client out of the shared customer auth.js storage slot. There
+    // is nothing sensitive fetched from Supabase on this page (the map
+    // below is static content), so this check is purely a UX gate, same
+    // as admin.html's leads/checklist panels -- not a security boundary.
+    const mapClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: { storageKey: 'aijobscout-admin-auth' },
+    });
+
+    const gatePanel = document.getElementById('gate-panel');
+    const mapContent = document.getElementById('map-content');
+
+    mapClient.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        gatePanel.hidden = true;
+        mapContent.hidden = false;
+      } else {
+        gatePanel.hidden = false;
+        mapContent.hidden = true;
+      }
+    });
+  </script>
+</body>
+</html>
