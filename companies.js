@@ -192,6 +192,14 @@ async function loadCompanies() {
   scopeLabel.textContent = '';
   limitNote.textContent = '';
 
+  // The backend sleeps after ~15 min idle and cold-starts in up to a minute.
+  // If this first request is slow, say so explicitly instead of leaving a
+  // bare "Loading..." that reads as broken. Cleared as soon as it resolves.
+  const wakeNotice = setTimeout(() => {
+    list.innerHTML =
+      '<p class="kanban-empty">Waking up the server… the first request after a while can take up to a minute.</p>';
+  }, 4000);
+
   let data;
   try {
     const response = await fetch(`${API_BASE}/candidates`, { headers: await authHeaders() });
@@ -205,6 +213,8 @@ async function loadCompanies() {
     msg.textContent = 'Could not load companies right now — try refreshing in a moment.';
     list.appendChild(msg);
     return;
+  } finally {
+    clearTimeout(wakeNotice);
   }
 
   list.innerHTML = '';
@@ -244,7 +254,8 @@ const shortlistStatus = document.getElementById('shortlist-status');
 
 shortlistForm.addEventListener('submit', async (event) => {
   event.preventDefault();
-  shortlistStatus.textContent = 'Starting...';
+  shortlistStatus.textContent =
+    'Starting… the server can take up to a minute to wake up on the first request.';
 
   // Clear the previous search's results right away -- leaving them up
   // while a new search runs reads as if the button did nothing.

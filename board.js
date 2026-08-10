@@ -4,6 +4,15 @@
 // JWT, which a freshly-created client wouldn't have.
 const client = authClient;
 
+// The FastAPI backend on Render -- only used for the "Scan my companies"
+// action below; every other board operation writes straight to Supabase.
+const API_BASE = 'https://ted-kilgore-capstone.onrender.com';
+
+async function authHeaders(extra) {
+  const { data: { session } } = await authClient.auth.getSession();
+  return { ...extra, ...(session ? { Authorization: `Bearer ${session.access_token}` } : {}) };
+}
+
 const STATUS_COLUMNS = [
   { value: 'identified', label: 'Identified' },
   { value: 'applied', label: 'Applied' },
@@ -67,6 +76,14 @@ function renderCard(opening) {
   const title = document.createElement('div');
   title.className = 'kanban-card-title';
   title.textContent = opening.title;
+  // Cards the scanner added carry a small "Scout" badge so it's clear which
+  // openings were found automatically vs. entered by hand.
+  if (opening.source === 'scout') {
+    const badge = document.createElement('span');
+    badge.className = 'scout-badge';
+    badge.textContent = 'Scout';
+    title.appendChild(badge);
+  }
   card.appendChild(title);
 
   const company = document.createElement('div');
@@ -188,6 +205,34 @@ const addForm = document.getElementById('add-form');
 
 addToggle.addEventListener('click', () => {
   addForm.hidden = !addForm.hidden;
+});
+
+// "Scan my companies for openings" -- asks the backend to read each current
+// target company's ATS board and insert any role-matching live postings as
+// scout cards. Realtime normally drops them onto the board on its own; we
+// also reload explicitly in case the subscription is momentarily behind.
+const scanButton = document.getElementById('scan-openings');
+const scanStatus = document.getElementById('scan-status');
+
+scanButton.addEventListener('click', async () => {
+  scanButton.disabled = true;
+  scanStatus.textContent =
+    'Scanning your companies… the server can take up to a minute to wake up on the first request.';
+  try {
+    const response = await fetch(`${API_BASE}/scan-openings`, {
+      method: 'POST',
+      headers: await authHeaders({ 'Content-Type': 'application/json' }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.detail || `${response.status} ${response.statusText}`);
+    scanStatus.textContent = result.message || 'Scan complete.';
+    if (result.openings_added) loadOpenings();
+  } catch (error) {
+    console.error('Scan failed', error);
+    scanStatus.textContent = `Couldn't scan right now: ${error.message}`;
+  } finally {
+    scanButton.disabled = false;
+  }
 });
 
 addForm.addEventListener('submit', async (event) => {

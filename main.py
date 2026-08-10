@@ -1,15 +1,11 @@
+import time
+
 from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
-from company_matcher import match_companies
-from company_recommender import (
-    COMPANY_SIZE_OPTIONS,
-    LOCAL_RADIUS_MILES,
-    TARGET_COMPANY_COUNT,
-    recommend_companies,
-)
+from company_recommender import LOCAL_RADIUS_MILES
+from openings_scout import scan_openings_for_user
 from shortlist_agent import build_replacement, build_shortlist, get_supabase_client, reject_candidate
 
 app = FastAPI(title="AI Job Scout — Company Matcher")
@@ -50,40 +46,44 @@ def require_user(user: dict | None = Depends(get_current_user)) -> dict:
     return user
 
 
-class MatchRequest(BaseModel):
-    resume: str
-    role: str
-    location: str
+# --- Per-user throttle -------------------------------------------------------
+# The costly endpoints (/shortlist runs Claude+Exa; /scan-openings hits ATS
+# boards) are now identity-gated, so we can rate-limit per user. This is a
+# deliberately simple in-process limiter: a min gap between calls (stops
+# double-clicks and hammering) plus a generous daily cap (stops a runaway
+# loop from burning the API budget). State lives in memory, so it resets on
+# deploy/cold-start -- acceptable as a first line of defense at this traffic
+# level; a shared store (Redis/Postgres) is the upgrade path if it ever needs
+# to be exact across workers.
+_MIN_SECONDS_BETWEEN = {"shortlist": 60, "scan": 30}
+_MAX_PER_DAY = {"shortlist": 25, "scan": 50}
+_last_call: dict = {}   # (action, user_id) -> monotonic timestamp
+_day_count: dict = {}   # (action, user_id, yyyy-mm-dd) -> count
 
 
-@app.post("/matcher")
-def matcher(request: MatchRequest):
-    try:
-        return match_companies(request.resume, request.role, request.location)
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=str(e))
-
-
-class RecommendRequest(BaseModel):
-    resume: str
-    role: str
-    location: str
-    company_size: str
-    include_remote: bool
-
-
-@app.post("/recommend")
-def recommend(request: RecommendRequest):
-    try:
-        return recommend_companies(
-            request.resume,
-            request.role,
-            request.location,
-            request.company_size,
-            request.include_remote,
+def enforce_throttle(action: str, user_id: str) -> None:
+    """Raise HTTP 429 if this user is calling `action` too fast or too often
+    today; otherwise record the call and return."""
+    now = time.monotonic()
+    last = _last_call.get((action, user_id))
+    min_gap = _MIN_SECONDS_BETWEEN[action]
+    if last is not None and now - last < min_gap:
+        wait = int(min_gap - (now - last)) + 1
+        raise HTTPException(
+            status_code=429,
+            detail=f"Please wait {wait}s before trying that again.",
         )
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=str(e))
+
+    today = time.strftime("%Y-%m-%d", time.gmtime())
+    day_key = (action, user_id, today)
+    if _day_count.get(day_key, 0) >= _MAX_PER_DAY[action]:
+        raise HTTPException(
+            status_code=429,
+            detail="Daily limit reached for this action — try again tomorrow.",
+        )
+
+    _last_call[(action, user_id)] = now
+    _day_count[day_key] = _day_count.get(day_key, 0) + 1
 
 
 class ShortlistRequest(BaseModel):
@@ -125,11 +125,8 @@ def _run_shortlist_job(
 
 
 @app.post("/shortlist")
-# Now identity-gated (require_user), which makes per-user rate limiting
-# tractable if abuse becomes a problem -- not implemented yet, just noting
-# it's the natural next step now that a request can no longer hide behind
-# an arbitrary client-supplied email.
 def shortlist(request: ShortlistRequest, background_tasks: BackgroundTasks, user: dict = Depends(require_user)):
+    enforce_throttle("shortlist", user["id"])
     recipient_email = user["email"]
     background_tasks.add_task(
         _run_shortlist_job,
@@ -199,410 +196,32 @@ def reject(request: RejectRequest, background_tasks: BackgroundTasks, user: dict
     }
 
 
-DEMO_HTML = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>AI Job Scout — Company Matcher</title>
-<style>
-  :root { color-scheme: light dark; }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    max-width: 900px;
-    margin: 2rem auto;
-    padding: 0 1.5rem;
-    line-height: 1.5;
-  }
-  h1 { font-size: 1.5rem; }
-  label { display: block; font-weight: 600; margin-top: 1rem; margin-bottom: 0.25rem; }
-  textarea, input {
-    width: 100%;
-    box-sizing: border-box;
-    padding: 0.5rem;
-    font-family: inherit;
-    font-size: 1rem;
-    border: 1px solid #999;
-    border-radius: 6px;
-  }
-  textarea { min-height: 140px; resize: vertical; }
-  button {
-    margin-top: 1.25rem;
-    padding: 0.65rem 1.25rem;
-    font-size: 1rem;
-    font-weight: 600;
-    border: none;
-    border-radius: 6px;
-    background: #2563eb;
-    color: white;
-    cursor: pointer;
-  }
-  button:disabled { opacity: 0.6; cursor: not-allowed; }
-  #status { margin-top: 1rem; font-style: italic; }
-  #results {
-    margin-top: 2rem;
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 1rem;
-  }
-  @media (max-width: 600px) {
-    #results { grid-template-columns: 1fr; }
-  }
-  .card {
-    border: 1px solid #ccc;
-    border-radius: 8px;
-    padding: 1rem;
-    min-width: 0;
-    overflow-wrap: break-word;
-  }
-  .card h3 { margin: 0 0 0.5rem; overflow-wrap: break-word; }
-  .card dl { margin: 0; }
-  .card dt { font-weight: 600; font-size: 0.85rem; margin-top: 0.5rem; }
-  .card dd {
-    margin: 0;
-    overflow-wrap: anywhere;
-    word-break: break-word;
-  }
-  .card dd a { overflow-wrap: anywhere; word-break: break-word; }
-  .missing { color: #888; font-style: italic; }
-  #json-details {
-    margin-top: 1.5rem;
-    border: 1px solid #ccc;
-    border-radius: 8px;
-    padding: 0.75rem 1rem;
-  }
-  #json-details summary {
-    cursor: pointer;
-    font-weight: 600;
-  }
-  #json-output {
-    margin: 0.75rem 0 0;
-    padding: 0.75rem;
-    background: rgba(127, 127, 127, 0.1);
-    border-radius: 6px;
-    font-size: 0.85rem;
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-    max-height: 400px;
-    overflow-y: auto;
-  }
-</style>
-</head>
-<body>
-  <h1>AI Job Scout — Company Matcher</h1>
+@app.post("/scan-openings")
+def scan_openings(user: dict = Depends(require_user)):
+    """Phase A of the Openings automation: read the ATS boards of the user's
+    current target companies (from My Companies) and add any role-matching
+    live postings to their My Openings board as 'scout' cards. Runs inline --
+    ATS lookups are fast and free, unlike the multi-minute /shortlist job --
+    so the response carries the actual result the page shows."""
+    enforce_throttle("scan", user["id"])
+    try:
+        summary = scan_openings_for_user(user["id"])
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
 
-  <label for="resume">Resume</label>
-  <textarea id="resume" placeholder="Paste your resume here..."></textarea>
+    added = summary["openings_added"]
+    scanned = summary["companies_scanned"]
+    if scanned == 0:
+        message = "No target companies to scan yet — run a company search first."
+    elif added == 0:
+        message = (
+            f"Scanned {scanned} companies — no new matching openings found on "
+            "their job boards right now."
+        )
+    else:
+        message = (
+            f"Found {added} new opening{'s' if added != 1 else ''} across "
+            f"{scanned} companies — added to your board."
+        )
+    return {"status": "ok", "message": message, **summary}
 
-  <label for="role">Target role</label>
-  <input id="role" type="text" placeholder="e.g. Director of Professional Services">
-
-  <label for="location">Location</label>
-  <input id="location" type="text" placeholder="e.g. Austin, TX (hybrid preferred)">
-
-  <button id="submit-btn">Find matching companies →</button>
-  <div id="status"></div>
-  <div id="results"></div>
-
-  <details id="json-details" style="display: none;">
-    <summary>Show JSON</summary>
-    <pre id="json-output"></pre>
-  </details>
-
-<script>
-const NOT_ENOUGH_EVIDENCE = "— not enough evidence to say —";
-
-function field(value) {
-  return (value === null || value === undefined || value === "")
-    ? NOT_ENOUGH_EVIDENCE
-    : value;
-}
-
-function renderCard(company) {
-  const card = document.createElement("div");
-  card.className = "card";
-
-  const hiringSignal = company.hiring_signal
-    ? `<a href="${company.hiring_signal}" target="_blank" rel="noopener noreferrer">${company.job_title || "View posting"}</a>`
-    : `<span class="missing">${NOT_ENOUGH_EVIDENCE}</span>`;
-
-  card.innerHTML = `
-    <h3>${field(company.company_name)}</h3>
-    <dl>
-      <dt>Size Estimate</dt>
-      <dd>${field(company.size_estimate)}</dd>
-      <dt>Location Match</dt>
-      <dd>${field(company.location_match)}</dd>
-      <dt>Hiring Signal</dt>
-      <dd>${hiringSignal}</dd>
-      <dt>Fit Rationale</dt>
-      <dd>${field(company.fit_rationale)}</dd>
-    </dl>
-  `;
-  return card;
-}
-
-document.getElementById("submit-btn").addEventListener("click", async () => {
-  const resume = document.getElementById("resume").value;
-  const role = document.getElementById("role").value;
-  const location = document.getElementById("location").value;
-
-  const statusEl = document.getElementById("status");
-  const resultsEl = document.getElementById("results");
-  const btn = document.getElementById("submit-btn");
-  const jsonDetailsEl = document.getElementById("json-details");
-  const jsonOutputEl = document.getElementById("json-output");
-
-  resultsEl.innerHTML = "";
-  jsonDetailsEl.style.display = "none";
-  jsonDetailsEl.open = false;
-  statusEl.textContent = "Searching...";
-  btn.disabled = true;
-
-  try {
-    const response = await fetch("/matcher", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ resume, role, location }),
-    });
-
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err.detail || `Request failed (${response.status})`);
-    }
-
-    const companies = await response.json();
-    statusEl.textContent = "";
-    companies.forEach((company) => resultsEl.appendChild(renderCard(company)));
-
-    jsonOutputEl.textContent = JSON.stringify(companies, null, 2);
-    jsonDetailsEl.style.display = "block";
-  } catch (err) {
-    statusEl.textContent = `Error: ${err.message}`;
-  } finally {
-    btn.disabled = false;
-  }
-});
-</script>
-</body>
-</html>
-"""
-
-
-@app.get("/demo", response_class=HTMLResponse)
-def demo():
-    return DEMO_HTML
-
-
-_COMPANY_SIZE_OPTIONS_HTML = "\n".join(
-    f'<option value="{opt}">{opt}</option>' for opt in COMPANY_SIZE_OPTIONS
-)
-
-RECOMMEND_DEMO_HTML = f"""<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>AI Job Scout — Company Recommender</title>
-<style>
-  :root {{ color-scheme: light dark; }}
-  body {{
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    max-width: 900px;
-    margin: 2rem auto;
-    padding: 0 1.5rem;
-    line-height: 1.5;
-  }}
-  h1 {{ font-size: 1.5rem; }}
-  label {{ display: block; font-weight: 600; margin-top: 1rem; margin-bottom: 0.25rem; }}
-  textarea, input, select {{
-    width: 100%;
-    box-sizing: border-box;
-    padding: 0.5rem;
-    font-family: inherit;
-    font-size: 1rem;
-    border: 1px solid #999;
-    border-radius: 6px;
-    background: Field;
-    color: FieldText;
-  }}
-  textarea {{ min-height: 140px; resize: vertical; }}
-  .checkbox-row {{
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-top: 1rem;
-  }}
-  .checkbox-row input {{ width: auto; }}
-  .checkbox-row label {{ font-weight: 400; margin: 0; }}
-  button {{
-    margin-top: 1.25rem;
-    padding: 0.65rem 1.25rem;
-    font-size: 1rem;
-    font-weight: 600;
-    border: none;
-    border-radius: 6px;
-    background: #2563eb;
-    color: white;
-    cursor: pointer;
-  }}
-  button:disabled {{ opacity: 0.6; cursor: not-allowed; }}
-  #status {{ margin-top: 1rem; font-style: italic; }}
-  #results {{
-    margin-top: 2rem;
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 1rem;
-  }}
-  @media (max-width: 600px) {{
-    #results {{ grid-template-columns: 1fr; }}
-  }}
-  .card {{
-    border: 1px solid #ccc;
-    border-radius: 8px;
-    padding: 1rem;
-    min-width: 0;
-    overflow-wrap: break-word;
-  }}
-  .card h3 {{ margin: 0 0 0.5rem; overflow-wrap: break-word; }}
-  .card dl {{ margin: 0; }}
-  .card dt {{ font-weight: 600; font-size: 0.85rem; margin-top: 0.5rem; }}
-  .card dd {{
-    margin: 0;
-    overflow-wrap: anywhere;
-    word-break: break-word;
-  }}
-  .missing {{ color: #888; font-style: italic; }}
-  #json-details {{
-    margin-top: 1.5rem;
-    border: 1px solid #ccc;
-    border-radius: 8px;
-    padding: 0.75rem 1rem;
-  }}
-  #json-details summary {{ cursor: pointer; font-weight: 600; }}
-  #json-output {{
-    margin: 0.75rem 0 0;
-    padding: 0.75rem;
-    background: rgba(127, 127, 127, 0.1);
-    border-radius: 6px;
-    font-size: 0.85rem;
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-    max-height: 400px;
-    overflow-y: auto;
-  }}
-</style>
-</head>
-<body>
-  <h1>AI Job Scout — Company Recommender</h1>
-  <p>Free-tier v1: {TARGET_COMPANY_COUNT} companies matched to your background — best-effort research, not verified live job postings.</p>
-
-  <label for="resume">Resume</label>
-  <textarea id="resume" placeholder="Paste your resume here..."></textarea>
-
-  <label for="role">Target role</label>
-  <input id="role" type="text" placeholder="e.g. Director of Professional Services">
-
-  <label for="location">Location</label>
-  <input id="location" type="text" placeholder="e.g. Austin, TX">
-  <div class="checkbox-row">
-    <input id="include-remote" type="checkbox">
-    <label for="include-remote">Include remote-friendly companies (in addition to companies with a local office within {LOCAL_RADIUS_MILES} miles)</label>
-  </div>
-
-  <label for="company-size">Preferred company size</label>
-  <select id="company-size">
-{_COMPANY_SIZE_OPTIONS_HTML}
-  </select>
-
-  <button id="submit-btn">Find {TARGET_COMPANY_COUNT} target companies →</button>
-  <div id="status"></div>
-  <div id="results"></div>
-
-  <details id="json-details" style="display: none;">
-    <summary>Show JSON</summary>
-    <pre id="json-output"></pre>
-  </details>
-
-<script>
-const NOT_ENOUGH_EVIDENCE = "— not enough evidence to say —";
-
-function field(value) {{
-  return (value === null || value === undefined || value === "")
-    ? NOT_ENOUGH_EVIDENCE
-    : value;
-}}
-
-function renderCard(company) {{
-  const card = document.createElement("div");
-  card.className = "card";
-  card.innerHTML = `
-    <h3>${{field(company.company_name)}}</h3>
-    <dl>
-      <dt>Size Estimate</dt>
-      <dd>${{field(company.size_estimate)}}</dd>
-      <dt>Location Match</dt>
-      <dd>${{field(company.location_match)}}</dd>
-      <dt>Growth / Leadership Note</dt>
-      <dd>${{field(company.growth_note)}}</dd>
-      <dt>Fit Rationale</dt>
-      <dd>${{field(company.fit_rationale)}}</dd>
-    </dl>
-  `;
-  return card;
-}}
-
-document.getElementById("submit-btn").addEventListener("click", async () => {{
-  const resume = document.getElementById("resume").value;
-  const role = document.getElementById("role").value;
-  const location = document.getElementById("location").value;
-  const companySize = document.getElementById("company-size").value;
-  const includeRemote = document.getElementById("include-remote").checked;
-
-  const statusEl = document.getElementById("status");
-  const resultsEl = document.getElementById("results");
-  const btn = document.getElementById("submit-btn");
-  const jsonDetailsEl = document.getElementById("json-details");
-  const jsonOutputEl = document.getElementById("json-output");
-
-  resultsEl.innerHTML = "";
-  jsonDetailsEl.style.display = "none";
-  jsonDetailsEl.open = false;
-  statusEl.textContent = "Searching...";
-  btn.disabled = true;
-
-  try {{
-    const response = await fetch("/recommend", {{
-      method: "POST",
-      headers: {{ "Content-Type": "application/json" }},
-      body: JSON.stringify({{
-        resume, role, location,
-        company_size: companySize,
-        include_remote: includeRemote,
-      }}),
-    }});
-
-    if (!response.ok) {{
-      const err = await response.json().catch(() => ({{}}));
-      throw new Error(err.detail || `Request failed (${{response.status}})`);
-    }}
-
-    const companies = await response.json();
-    statusEl.textContent = "";
-    companies.forEach((company) => resultsEl.appendChild(renderCard(company)));
-
-    jsonOutputEl.textContent = JSON.stringify(companies, null, 2);
-    jsonDetailsEl.style.display = "block";
-  }} catch (err) {{
-    statusEl.textContent = `Error: ${{err.message}}`;
-  }} finally {{
-    btn.disabled = false;
-  }}
-}});
-</script>
-</body>
-</html>
-"""
-
-
-@app.get("/recommend-demo", response_class=HTMLResponse)
-def recommend_demo():
-    return RECOMMEND_DEMO_HTML

@@ -1,0 +1,21 @@
+# AI Job Scout
+
+> AI Job Scout is a target-company job search tool. Instead of scraping job boards, it builds a researched, curated shortlist of companies worth working for: it generates candidate companies from a user's resume and preferences, then spot-checks each against public headcount-growth, company-size, and leadership-turnover signals. It then reads those companies' own ATS career boards directly to surface live, real openings — not stale reposts — onto a personal tracking board.
+
+Each user signs in (passwordless magic link), pastes a resume, and sets a target role, location, and company-fit preferences (including radius, growth emphasis, and leadership-stability emphasis). AI Job Scout returns a shortlist of ~10 fit-matched companies the user can curate (reject and auto-replace). From the saved companies, the user can scan those companies' job boards to auto-populate a Kanban "My Openings" tracker, and a weekly email digest summarizes the current shortlist. Each user's companies and openings are private to their account.
+
+## Pages
+
+- [Home](https://ted-kilgore-capstone.vercel.app/): Product pitch and overview.
+- [How It Works](https://ted-kilgore-capstone.vercel.app/how-it-works.html): Step-by-step walkthrough — paste resume and preferences, get a researched shortlist, curate it, track openings.
+- [My Companies](https://ted-kilgore-capstone.vercel.app/companies.html): The signed-in user's curated shortlist of target companies, with size, growth, and fit rationale for each (requires sign-in).
+- [My Openings](https://ted-kilgore-capstone.vercel.app/openings.html): A live Kanban board of job openings from the user's target companies, tracked from identified through closed (requires sign-in).
+- [About](https://ted-kilgore-capstone.vercel.app/about.html): Why this tool exists.
+- [Coming Soon](https://ted-kilgore-capstone.vercel.app/coming-soon.html): Planned features.
+- [Contact](https://ted-kilgore-capstone.vercel.app/contact.html): Get in touch.
+
+## Notes
+
+- Company research (headcount growth, size, leadership stability) is AI-generated and spot-checked via live web search — best-effort, not a fully verified structured database.
+- Openings are read directly from companies' own ATS boards (Greenhouse, Lever, Ashby), so listings are live rather than reposted; companies on other platforms may surface fewer or no openings automatically.
+- Accounts are private and per-user; company and opening data is scoped to the signed-in user.

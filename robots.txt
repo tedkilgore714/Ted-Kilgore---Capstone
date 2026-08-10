@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /admin.html
+Disallow: /system-map.html
+
+Sitemap: https://ted-kilgore-capstone.vercel.app/sitemap.xml

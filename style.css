@@ -1086,6 +1086,22 @@ article p {
   margin-bottom: 0.2rem;
 }
 
+/* Marks openings the scanner found automatically (source = 'scout'), to
+   distinguish them from cards the user typed in by hand. */
+.scout-badge {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.4rem;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  vertical-align: middle;
+  color: #fff;
+  background: var(--accent);
+  border-radius: 999px;
+}
+
 .kanban-card-company {
   font-size: 0.82rem;
   color: var(--muted);

@@ -1,0 +1,29 @@
+name: Keep backend warm
+
+# Render's free tier spins the FastAPI service down after ~15 min idle, and
+# the next request then cold-starts in up to a minute. This pings it on a
+# short interval during active hours so a real visitor almost never hits a
+# cold start. companies.js / board.js still show a "waking up" message for
+# the cold starts that do slip through (e.g. the first ping of the day, or
+# when GitHub delays a scheduled run).
+#
+# Deliberately NOT 24/7: Render's free plan grants 750 instance-hours/month,
+# and keeping the service awake around the clock would consume nearly all of
+# them (and could get it suspended late in the month). Pinging only ~16h/day
+# keeps usage comfortably under budget. Widen or remove the hour range if you
+# upgrade to a paid Render plan (at which point this workflow isn't needed at
+# all -- paid instances never sleep).
+on:
+  schedule:
+    # Every 10 minutes from 12:00-03:59 UTC (~7am-11pm US Central).
+    - cron: "*/10 0-3,12-23 * * *"
+  workflow_dispatch: {}  # manual "Run workflow" button for a one-off ping
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping backend
+        # -f isn't used on purpose: a slow cold-start or transient blip
+        # shouldn't fail the workflow. --max-time covers the worst-case boot.
+        run: curl -sS --max-time 90 https://ted-kilgore-capstone.onrender.com/docs -o /dev/null -w "HTTP %{http_code} in %{time_total}s\n" || true
