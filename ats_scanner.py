@@ -78,8 +78,20 @@ def detect_ats(jobs_url: str) -> tuple | None:
     elif "ashbyhq.com" in host:
         if path_parts:
             return ("ashby", path_parts[0])
+    elif host.endswith(".bamboohr.com") or host.endswith(".breezy.hr"):
+        # Subdomain-tokened platforms: acme.bamboohr.com / acme.breezy.hr.
+        token = host.split(".")[0]
+        if token and token not in _GENERIC_SUBDOMAINS:
+            platform = "bamboohr" if host.endswith(".bamboohr.com") else "breezy"
+            return (platform, token)
     return None
 
+
+# Subdomain labels that can never be a company's board token on the
+# subdomain-tokened platforms (bamboohr/breezy) -- marketing sites, CDNs,
+# and app hosts that would otherwise false-match the embed patterns below
+# (e.g. a "learn more at www.bamboohr.com" footer link).
+_GENERIC_SUBDOMAINS = {"www", "app", "api", "static", "cdn", "attachments-cdn", "help", "support"}
 
 # Signatures an ATS embed leaves in a company's own careers-page HTML, most
 # explicit first. Each is (platform, compiled pattern with the board token as
@@ -95,6 +107,8 @@ _EMBED_PATTERNS = [
     ("lever", re.compile(r"jobs\.lever\.co/([A-Za-z0-9_-]+)")),
     ("ashby", re.compile(r"api\.ashbyhq\.com/posting-api/job-board/([A-Za-z0-9_.%-]+)")),
     ("ashby", re.compile(r"jobs\.ashbyhq\.com/([A-Za-z0-9_.%-]+)")),
+    ("bamboohr", re.compile(r"([A-Za-z0-9-]+)\.bamboohr\.com")),
+    ("breezy", re.compile(r"([A-Za-z0-9-]+)\.breezy\.hr")),
 ]
 
 
@@ -115,9 +129,13 @@ def detect_embedded_ats(careers_url: str) -> tuple | None:
         return None
 
     for platform, pattern in _EMBED_PATTERNS:
-        match = pattern.search(html)
-        if match:
-            return (platform, match.group(1))
+        for match in pattern.finditer(html):
+            token = match.group(1)
+            # A marketing/CDN link ("try www.bamboohr.com") isn't a board --
+            # keep looking for a real token instead of stopping at it.
+            if token in _GENERIC_SUBDOMAINS:
+                continue
+            return (platform, token)
     return None
 
 
@@ -129,6 +147,8 @@ def canonical_board_url(platform: str, token: str) -> str:
         "greenhouse": f"https://boards.greenhouse.io/{token}",
         "lever": f"https://jobs.lever.co/{token}",
         "ashby": f"https://jobs.ashbyhq.com/{token}",
+        "bamboohr": f"https://{token}.bamboohr.com/careers",
+        "breezy": f"https://{token}.breezy.hr",
     }[platform]
 
 
@@ -253,10 +273,51 @@ def _fetch_ashby(token: str) -> list:
     return postings
 
 
+def _fetch_bamboohr(token: str) -> list:
+    # Same public endpoint BambooHR's own careers widget calls. The list API
+    # carries no posted date; atsLocation is the structured one (the plain
+    # `location` field is often all-null).
+    url = f"https://{token}.bamboohr.com/careers/list"
+    resp = requests.get(url, timeout=HTTP_TIMEOUT, headers=_UA_HEADERS)
+    resp.raise_for_status()
+    postings = []
+    for job in resp.json().get("result", []):
+        loc = job.get("atsLocation") or job.get("location") or {}
+        city, state = loc.get("city"), loc.get("state")
+        postings.append(
+            {
+                "title": job.get("jobOpeningName"),
+                "url": f"https://{token}.bamboohr.com/careers/{job['id']}" if job.get("id") else None,
+                "location": ", ".join(p for p in (city, state) if p) or None,
+                "posted_at": None,
+            }
+        )
+    return postings
+
+
+def _fetch_breezy(token: str) -> list:
+    url = f"https://{token}.breezy.hr/json"
+    resp = requests.get(url, timeout=HTTP_TIMEOUT, headers=_UA_HEADERS)
+    resp.raise_for_status()
+    postings = []
+    for job in resp.json():
+        postings.append(
+            {
+                "title": job.get("name"),
+                "url": job.get("url"),
+                "location": (job.get("location") or {}).get("name"),
+                "posted_at": _iso_from_str(job.get("published_date")),
+            }
+        )
+    return postings
+
+
 _FETCHERS = {
     "greenhouse": _fetch_greenhouse,
     "lever": _fetch_lever,
     "ashby": _fetch_ashby,
+    "bamboohr": _fetch_bamboohr,
+    "breezy": _fetch_breezy,
 }
 
 
