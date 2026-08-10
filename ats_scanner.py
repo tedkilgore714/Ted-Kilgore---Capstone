@@ -20,6 +20,10 @@ import requests
 HTTP_TIMEOUT = 12  # seconds -- one unresponsive board shouldn't stall a scan
 MAX_POSTINGS_PER_COMPANY = 5  # keep a huge board from flooding one user's list
 
+# Some careers pages refuse the default python-requests UA; a plain browser
+# UA keeps the (public, unauthenticated) page fetch working.
+_UA_HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; AIJobScout/1.0)"}
+
 # Words that carry no matching signal in a job title -- dropped before
 # comparing a stored target role against a live posting title.
 _STOPWORDS = {"of", "the", "and", "for", "a", "an", "to", "in", "at", "on", "&", "-", "/"}
@@ -74,6 +78,110 @@ def detect_ats(jobs_url: str) -> tuple | None:
     elif "ashbyhq.com" in host:
         if path_parts:
             return ("ashby", path_parts[0])
+    return None
+
+
+# Signatures an ATS embed leaves in a company's own careers-page HTML, most
+# explicit first. Each is (platform, compiled pattern with the board token as
+# group 1). The Greenhouse embed-script form (job_board/js?for=<token>) is
+# what pages like logicmonitor.com/careers use -- the page looks custom, but
+# this script is serving it straight off Greenhouse.
+_EMBED_PATTERNS = [
+    ("greenhouse", re.compile(r"boards\.greenhouse\.io/embed/job_board(?:/js)?\?[^\"'<>\s]*?for=([A-Za-z0-9_-]+)")),
+    ("greenhouse", re.compile(r"boards-api\.greenhouse\.io/v1/boards/([A-Za-z0-9_-]+)")),
+    ("greenhouse", re.compile(r"job-boards\.greenhouse\.io/([A-Za-z0-9_-]+)")),
+    ("greenhouse", re.compile(r"boards\.greenhouse\.io/(?!embed\b)([A-Za-z0-9_-]+)")),
+    ("lever", re.compile(r"api\.lever\.co/v0/postings/([A-Za-z0-9_-]+)")),
+    ("lever", re.compile(r"jobs\.lever\.co/([A-Za-z0-9_-]+)")),
+    ("ashby", re.compile(r"api\.ashbyhq\.com/posting-api/job-board/([A-Za-z0-9_.%-]+)")),
+    ("ashby", re.compile(r"jobs\.ashbyhq\.com/([A-Za-z0-9_.%-]+)")),
+]
+
+
+def detect_embedded_ats(careers_url: str) -> tuple | None:
+    """Companies increasingly serve their ATS board through their own domain
+    (acme.com/careers) instead of linking the bare board URL, so the stored
+    jobs_url often isn't a recognizable ATS domain even though a supported
+    board powers it. Fetch the page once and look for the embed's signature
+    in the HTML. Returns (platform, board_token) or None; never raises."""
+    if not careers_url:
+        return None
+    url = careers_url if "://" in careers_url else f"https://{careers_url}"
+    try:
+        resp = requests.get(url, timeout=HTTP_TIMEOUT, headers=_UA_HEADERS)
+        resp.raise_for_status()
+        html = resp.text
+    except requests.RequestException:
+        return None
+
+    for platform, pattern in _EMBED_PATTERNS:
+        match = pattern.search(html)
+        if match:
+            return (platform, match.group(1))
+    return None
+
+
+def canonical_board_url(platform: str, token: str) -> str:
+    """The bare, directly-detectable board URL for a resolved platform/token
+    -- what we persist back onto the candidates row so future scans (and the
+    cross-user jobs_url cache) skip the HTML fetch."""
+    return {
+        "greenhouse": f"https://boards.greenhouse.io/{token}",
+        "lever": f"https://jobs.lever.co/{token}",
+        "ashby": f"https://jobs.ashbyhq.com/{token}",
+    }[platform]
+
+
+# Hosts that are job platforms rather than the company's own site. A careers
+# URL on one of these must not contribute its domain as a board-token guess
+# below -- e.g. careers-carousel.icims.com would yield the token "icims",
+# which could validate against some unrelated company's board.
+_PLATFORM_HOSTS = (
+    "greenhouse.io", "lever.co", "ashbyhq.com", "myworkday.com",
+    "smartrecruiters.com", "icims.com", "jobvite.com", "bamboohr.com",
+    "workable.com", "breezy.hr", "jazzhr.com", "adp.com", "paylocity.com",
+)
+
+
+def guess_board(jobs_url: str, company_name: str) -> tuple | None:
+    """Last-resort resolution for careers pages that render their board with
+    custom JavaScript, where no embed signature appears in the HTML (e.g.
+    logicmonitor.com/careers builds its Greenhouse board client-side).
+
+    Guess the board token from the company's own domain and name, then
+    validate each guess against the three ATS APIs -- a guess only counts if
+    the API answers with a real, non-empty board. The domain stem is a strong
+    brand identifier, so a validated hit is almost certainly the right
+    company; the theoretical miss (an unrelated company owning the exact
+    brand-slug token on some platform) is accepted as a rare, reviewable
+    wrong-company card rather than a reason to leave the whole company
+    unscannable. Returns (platform, token) or None; never raises."""
+    tokens = []
+
+    if jobs_url:
+        try:
+            parsed = urlparse(jobs_url if "://" in jobs_url else f"https://{jobs_url}")
+            host = (parsed.netloc or "").lower().removeprefix("www.")
+            if host and not any(p in host for p in _PLATFORM_HOSTS):
+                # Registrable-domain stem: "logicmonitor" from
+                # www.logicmonitor.com or careers.logicmonitor.com.
+                stem = host.split(".")[-2] if "." in host else host
+                if stem:
+                    tokens.append(stem)
+        except ValueError:
+            pass
+
+    name_slug = re.sub(r"[^a-z0-9]", "", (company_name or "").lower())
+    if name_slug and name_slug not in tokens:
+        tokens.append(name_slug)
+
+    for token in tokens:
+        for platform, fetcher in _FETCHERS.items():
+            try:
+                if fetcher(token):
+                    return (platform, token)
+            except (requests.RequestException, ValueError):
+                continue
     return None
 
 
@@ -152,22 +260,40 @@ _FETCHERS = {
 }
 
 
-def find_matching_postings(jobs_url: str, role: str) -> list:
+def find_matching_postings(jobs_url: str, role: str, company_name: str = "") -> tuple:
     """All currently-open postings on `jobs_url`'s board whose title matches
     `role`, best match first, capped at MAX_POSTINGS_PER_COMPANY.
 
-    Returns [] (never raises) for an unrecognized ATS, an unreachable board,
-    or a board with no role-matching openings -- one bad company should never
-    sink a whole scan.
+    Board resolution runs cheapest-and-most-certain first:
+      1. detect_ats        -- jobs_url already is a bare board URL.
+      2. detect_embedded_ats -- fetch the careers page, read the embed
+                                signature out of its HTML.
+      3. guess_board       -- derive candidate tokens from the company's
+                              domain/name and validate them against the ATS
+                              APIs (covers JS-rendered boards with no
+                              signature in the HTML).
+
+    Returns (postings, resolved_board_url). resolved_board_url is only set
+    when step 2 or 3 had to discover the board -- the caller should persist
+    it over the stored jobs_url so the next scan goes straight to the board.
+    It stays None when jobs_url already was the board.
+
+    Returns ([], None) (never raises) for an unresolvable board, an
+    unreachable one, or one with no role-matching openings -- one bad
+    company should never sink a whole scan.
     """
+    resolved_url = None
     detected = detect_ats(jobs_url)
     if not detected:
-        return []
+        detected = detect_embedded_ats(jobs_url) or guess_board(jobs_url, company_name)
+        if not detected:
+            return ([], None)
+        resolved_url = canonical_board_url(*detected)
     platform, token = detected
     try:
         postings = _FETCHERS[platform](token)
     except (requests.RequestException, ValueError):
-        return []
+        return ([], None)
 
     matched = []
     for posting in postings:
@@ -189,4 +315,4 @@ def find_matching_postings(jobs_url: str, role: str) -> list:
         )
 
     matched.sort(key=lambda p: p["match_score"], reverse=True)
-    return matched[:MAX_POSTINGS_PER_COMPANY]
+    return (matched[:MAX_POSTINGS_PER_COMPANY], resolved_url)

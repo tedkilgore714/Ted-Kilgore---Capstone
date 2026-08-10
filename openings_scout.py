@@ -86,7 +86,26 @@ def scan_openings_for_user(user_id: str) -> dict:
         if not jobs_url:
             continue
         scanned += 1
-        postings = find_matching_postings(jobs_url, company.get("role") or "")
+        postings, resolved_url = find_matching_postings(
+            jobs_url, company.get("role") or "", company.get("company_name") or ""
+        )
+
+        # The stored jobs_url was a company's own careers page and the real
+        # board had to be discovered from its HTML -- persist the bare board
+        # URL so the next scan (and the cross-user jobs_url cache in
+        # company_recommender) goes straight to it. Best-effort: a failed
+        # update just means the same one-page fetch happens again next scan.
+        if resolved_url:
+            try:
+                supabase.table("candidates").update({"jobs_url": resolved_url}).eq(
+                    "id", company["id"]
+                ).execute()
+                print(
+                    f"[scan] resolved {company['company_name']}: {jobs_url} -> {resolved_url}",
+                    flush=True,
+                )
+            except Exception as e:
+                print(f"[scan] couldn't persist resolved board for {company['company_name']}: {e}", flush=True)
         for posting in postings:
             url_key = posting["url"].lower()
             if url_key in seen_urls:
