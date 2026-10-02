@@ -1,0 +1,10 @@
+aijobscout.env
+.venv
+.DS_Store
+__pycache__/
+Job_Scout_Uers.csv
+Theresa-Kilgore-Resume-2026.pdf
+dummy_resume_*.txt
+AI_Job_Scout_Project_Review_*.docx
+Site Status*.rtf
+Plan_Update_*.txt
