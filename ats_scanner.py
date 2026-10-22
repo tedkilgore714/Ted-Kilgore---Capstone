@@ -34,10 +34,44 @@ def _significant_words(text: str) -> set:
     return {w for w in words if w and w not in _STOPWORDS}
 
 
+# Seniority / level words. They say how senior the role is, not what the job
+# is, so they are dropped when looking for the role's core phrase.
+_LEVEL_WORDS = {
+    "senior", "sr", "junior", "jr", "staff", "principal", "lead", "head",
+    "director", "manager", "vp", "chief", "associate", "assistant",
+    "i", "ii", "iii", "iv",
+}
+
+CORE_PHRASE_SCORE = 0.6  # floor score when a title contains the role's core phrase
+
+
+def _ordered_words(text: str) -> list:
+    words = re.split(r"[^a-z0-9]+", (text or "").lower())
+    return [w for w in words if w and w not in _STOPWORDS]
+
+
+def _contains_core_phrase(role: str, title: str) -> bool:
+    """True when the role's core phrase -- its words minus level words, in
+    order and adjacent -- appears in the title. Needs at least two core
+    words, so a bare "Engineer" can't match every engineering posting."""
+    core = [w for w in _ordered_words(role) if w not in _LEVEL_WORDS]
+    if len(core) < 2:
+        return False
+    title_words = _ordered_words(title)
+    n = len(core)
+    return any(title_words[i:i + n] == core for i in range(len(title_words) - n + 1))
+
+
 def role_matches_title(role: str, title: str, threshold: float = 0.5) -> float:
     """How well a live posting title matches the user's target role, as a
     0.0-1.0 keyword-overlap ratio. Returns the ratio when it clears
     `threshold` (so the caller can reuse it as a rough match_score), else 0.0.
+
+    A title that contains the role's core phrase ("Professional Services" in
+    "VP, Professional Services Delivery" for a "Director of Professional
+    Services" search) is floored at CORE_PHRASE_SCORE even when the raw
+    overlap is below the threshold, since a differently-levelled title for
+    the same function is still a relevant opening.
 
     Deliberately simple -- this is the free Phase A heuristic. Phase B layers
     a real Claude fit-score on top for the postings this lets through.
@@ -47,6 +81,8 @@ def role_matches_title(role: str, title: str, threshold: float = 0.5) -> float:
         return 0.0
     title_words = _significant_words(title)
     overlap = len(role_words & title_words) / len(role_words)
+    if overlap < threshold and _contains_core_phrase(role, title):
+        return CORE_PHRASE_SCORE
     return overlap if overlap >= threshold else 0.0
 
 
@@ -353,7 +389,16 @@ def find_matching_postings(jobs_url: str, role: str, company_name: str = "") -> 
     platform, token = detected
     try:
         postings = _FETCHERS[platform](token)
-    except (requests.RequestException, ValueError):
+    except (requests.RequestException, ValueError) as e:
+        # Still returns no postings, but says why -- a dead or renamed board
+        # token (e.g. a 404) otherwise looks identical to "no matching roles".
+        status = getattr(getattr(e, "response", None), "status_code", None)
+        reason = f"HTTP {status}" if status else type(e).__name__
+        print(
+            f"[scan] couldn't read {company_name or jobs_url} "
+            f"({platform} board '{token}'): {reason}",
+            flush=True,
+        )
         return ([], None)
 
     matched = []
